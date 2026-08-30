@@ -4,3 +4,4 @@ analysis/
 supabase_secrets*
 *.env
 .omc/
+report.html
