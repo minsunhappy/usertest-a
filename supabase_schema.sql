@@ -3,6 +3,8 @@
 create table public.participants (
     id uuid primary key,
     name text not null,
+    age int,
+    gender text,                      -- 남 | 여
     set_order jsonb,
     condition_orders jsonb,
     user_agent text,

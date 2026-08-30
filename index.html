@@ -58,6 +58,13 @@
         <h2>참가자 정보</h2>
         <label class="field" for="pname">이름 (또는 닉네임)</label>
         <input type="text" id="pname" placeholder="예: 홍길동" autocomplete="off">
+        <label class="field" for="page">나이</label>
+        <input type="number" id="page" placeholder="예: 25" min="1" max="120" style="width:140px;">
+        <label class="field">성별</label>
+        <div class="gender-row">
+            <label class="gender-opt"><input type="radio" name="pgender" value="남"><span>남</span></label>
+            <label class="gender-opt"><input type="radio" name="pgender" value="여"><span>여</span></label>
+        </div>
         <div class="btn-row">
             <button class="btn" id="startBtn">테스트 시작하기</button>
         </div>
@@ -87,6 +94,10 @@ if (existing) {
 document.getElementById("startBtn").addEventListener("click", async () => {
     const name = document.getElementById("pname").value.trim();
     if (!name) { alert("이름(또는 닉네임)을 입력해 주세요."); return; }
+    const age = parseInt(document.getElementById("page").value, 10);
+    if (!age || age < 1 || age > 120) { alert("나이를 숫자로 입력해 주세요."); return; }
+    const gender = document.querySelector('input[name="pgender"]:checked')?.value;
+    if (!gender) { alert("성별을 선택해 주세요."); return; }
 
     // resume if an unfinished session exists for the same name
     const prev = localStorage.getItem("ut_state");
@@ -108,7 +119,7 @@ document.getElementById("startBtn").addEventListener("click", async () => {
 
     const state = {
         version: 2,
-        participant: { id: participantId, name },
+        participant: { id: participantId, name, age, gender },
         setOrder,
         conditionOrders,
         cursor: { setIdx: 0 },
@@ -124,6 +135,8 @@ document.getElementById("startBtn").addEventListener("click", async () => {
             await supabaseClient.from("participants").insert({
                 id: participantId,
                 name,
+                age,
+                gender,
                 set_order: setOrder,
                 condition_orders: conditionOrders,
                 user_agent: navigator.userAgent,

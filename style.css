@@ -33,6 +33,13 @@ input[type="text"] {
     border: 1px solid #cfd5df; border-radius: 8px;
 }
 label.field { display: block; font-weight: 600; margin: 14px 0 6px; }
+.gender-row { display: flex; gap: 8px; }
+.gender-opt {
+    padding: 10px 34px; border: 1.5px solid #cfd5df; border-radius: 8px;
+    cursor: pointer; font-weight: 600; user-select: none; background: #fff;
+}
+.gender-opt input { display: none; }
+.gender-opt:has(input:checked) { background: #2f6bff; border-color: #2f6bff; color: #fff; }
 
 /* progress */
 .progress-bar { position: sticky; top: 0; z-index: 10; background: #fff; border-bottom: 1px solid #e2e5ea; }
