@@ -10,6 +10,7 @@ Outputs into analysis/: summary CSVs, significance tests, and bar/box plots.
 """
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -25,6 +26,8 @@ CONDITION_LABEL = {
     "random": "Random",
 }
 QS = ["q1", "q2", "q3"]
+# 개발/QA 중 쌓인 계정은 분석에서 제외 (실제 참가자만 집계)
+EXCLUDE_NAME_RE = re.compile(r"^(QA[-_]|SETUP_TEST$|POLICY_TEST$|test\d*$)", re.IGNORECASE)
 Q_LABEL = {"q1": "Q1 Intent relevance", "q2": "Q2 Editing naturalness", "q3": "Q3 Overall satisfaction"}
 
 
@@ -80,6 +83,18 @@ def main():
     if df.empty:
         sys.exit("No responses found.")
     OUT.mkdir(exist_ok=True)
+
+    if "participant_name" in df.columns:
+        is_test = df.participant_name.fillna("").str.match(EXCLUDE_NAME_RE)
+        if is_test.any():
+            dropped = sorted(df.loc[is_test, "participant_name"].fillna("(이름없음)").unique())
+            print(f"테스트 계정 제외: {', '.join(dropped)}")
+            df = df[~is_test]
+        # 참가자 행이 없어 이름이 비어 있는 응답도 제외
+        noname = df.participant_name.isna()
+        if noname.any():
+            print(f"이름 없는 응답 {int(noname.sum())}행 제외")
+            df = df[~noname]
 
     # Writes are append-only, so a participant who went back and edited a set has
     # several rows for it. Keep the newest row per (participant, set, condition).
