@@ -31,26 +31,28 @@ async function flush() {
     let pending = state.pendingUploads || [];
     if (supabaseClient) {
         const stillPending = [];
+        try {
+            const { error } = await supabaseClient.from("participants").insert({
+                id: state.participant.id,
+                name: state.participant.name,
+                age: state.participant.age,
+                gender: state.participant.gender,
+                set_order: state.setOrder,
+                condition_orders: state.conditionOrders,
+                user_agent: navigator.userAgent,
+            });
+            if (error && error.code !== "23505") console.warn(error);
+        } catch (e) { console.warn(e); }
+
         for (const r of pending) {
             try {
-                let { error } = await supabaseClient.from("responses").insert(r);
-                if (error && error.code === "23505") {
-                    ({ error } = await supabaseClient.from("responses").update(r)
-                        .eq("participant_id", r.participant_id)
-                        .eq("set_id", r.set_id)
-                        .eq("file_key", r.file_key));
-                }
+                const { error } = await supabaseClient.from("responses").insert(r);
                 if (error) throw error;
             } catch (e) { stillPending.push(r); }
         }
         pending = stillPending;
         state.pendingUploads = pending;
         localStorage.setItem("ut_state", JSON.stringify(state));
-        try {
-            await supabaseClient.from("participants")
-                .update({ completed: true, completed_at: new Date().toISOString() })
-                .eq("id", state.participant.id);
-        } catch (e) { console.warn(e); }
     }
 
     if (!supabaseClient || pending.length > 0) {

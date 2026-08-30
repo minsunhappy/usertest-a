@@ -151,7 +151,7 @@ document.getElementById("startBtn").addEventListener("click", async () => {
 
     if (supabaseClient) {
         try {
-            await supabaseClient.from("participants").insert({
+            const { error } = await supabaseClient.from("participants").insert({
                 id: participantId,
                 name,
                 age,
@@ -160,6 +160,9 @@ document.getElementById("startBtn").addEventListener("click", async () => {
                 condition_orders: conditionOrders,
                 user_agent: navigator.userAgent,
             });
+            if (error) throw error;
+            state.participantSynced = true;   // test.html retries this if it failed here
+            localStorage.setItem("ut_state", JSON.stringify(state));
         } catch (e) { console.warn("participant insert failed", e); }
     }
     location.href = "test.html";

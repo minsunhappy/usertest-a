@@ -81,20 +81,26 @@ def main():
         sys.exit("No responses found.")
     OUT.mkdir(exist_ok=True)
 
-    # keep only participants with complete data (5 sets x 4 conditions = 20 rows),
-    # dropping duplicate submissions (keep last: edited answers overwrite earlier ones)
+    # Writes are append-only, so a participant who went back and edited a set has
+    # several rows for it. Keep the newest row per (participant, set, condition).
     df = df.sort_values("id" if "id" in df.columns else "set_index")
+    before = len(df)
     df = df.drop_duplicates(subset=["participant_id", "set_id", "condition"], keep="last")
+    if before != len(df):
+        print(f"수정본 {before - len(df)}행을 최신 응답으로 대체했습니다.")
+
+    # keep only participants with complete data (5 sets x 4 conditions = 20 rows)
     counts = df.groupby("participant_id").size()
     complete_ids = counts[counts == 20].index
     incomplete = counts[counts != 20]
     if len(incomplete):
-        print(f"⚠️  dropping {len(incomplete)} incomplete participant(s): "
-              + ", ".join(f"{pid[:8]}({n})" for pid, n in incomplete.items()))
+        names = df.groupby("participant_id").participant_name.first()
+        print(f"⚠️  미완료 참가자 {len(incomplete)}명 제외: "
+              + ", ".join(f"{names.get(pid, pid[:8])}({c}행)" for pid, c in incomplete.items()))
     df = df[df.participant_id.isin(complete_ids)].copy()
     n = df.participant_id.nunique()
     if n == 0:
-        sys.exit("No complete participants yet (each needs 20 responses) — nothing to analyze.")
+        sys.exit("아직 완료한 참가자가 없습니다 (1명당 20개 응답 필요).")
     print(f"participants analyzed: {n} ({len(df)} responses)")
     df.to_csv(OUT / "responses_raw.csv", index=False)
 
@@ -117,11 +123,14 @@ def main():
             a = piv[(q, "intentcut_s2")]
             b = piv[(q, base)]
             mask = a.notna() & b.notna()
+            head = (f"{q} intentcut_s2 vs {base}: "
+                    f"mean {a[mask].mean():.2f} vs {b[mask].mean():.2f}")
+            if mask.sum() < 2 or (a[mask] - b[mask]).abs().sum() == 0:
+                lines.append(f"{head} | 검정 불가 (차이가 없거나 표본 부족)")
+                continue
             w = stats.wilcoxon(a[mask], b[mask])
             t = stats.ttest_rel(a[mask], b[mask])
-            lines.append(f"{q} intentcut_s2 vs {base}: "
-                         f"mean {a[mask].mean():.2f} vs {b[mask].mean():.2f} | "
-                         f"wilcoxon p={w.pvalue:.4f} | paired-t p={t.pvalue:.4f}")
+            lines.append(f"{head} | wilcoxon p={w.pvalue:.4f} | paired-t p={t.pvalue:.4f}")
     report = "\n".join(lines)
     (OUT / "significance.txt").write_text(report + "\n")
     print("\n=== paired tests (per participant x set) ===")
@@ -151,7 +160,8 @@ def main():
     fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), sharey=True)
     for ax, q in zip(axes, QS):
         data = [df[df.condition == c][q].dropna() for c in CONDITION_ORDER]
-        ax.boxplot(data, tick_labels=[CONDITION_LABEL[c] for c in CONDITION_ORDER])
+        ax.boxplot(data)
+        ax.set_xticklabels([CONDITION_LABEL[c] for c in CONDITION_ORDER])
         ax.set_title(Q_LABEL[q])
         ax.tick_params(axis="x", rotation=20)
         ax.grid(axis="y", alpha=.3)
