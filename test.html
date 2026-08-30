@@ -71,6 +71,7 @@ function render() {
             <div class="video-note ${a.watched ? "done" : ""}" id="note-${fk}">
                 ${a.watched ? "✓ 시청 완료! 아래 질문에 답해 주세요." : "▶ 영상을 처음부터 끝까지 시청하면 아래 질문이 활성화됩니다. (앞으로 건너뛰기 불가)"}
             </div>
+            <div class="intent-inline"><span class="intent-label">INTENT · 의도</span> “${set.intent_ko}”</div>
             ${qHtml}
         </div>`;
     }).join("");

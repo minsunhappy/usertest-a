@@ -57,6 +57,11 @@ label.field { display: block; font-weight: 600; margin: 14px 0 6px; }
 .intent-box .intent-en { font-size: .95rem; color: #566072; margin-top: 4px; }
 
 video { width: 100%; border-radius: 10px; background: #000; display: block; }
+.intent-inline {
+    background: #eef3ff; border: 1.5px solid #b9ccff; border-radius: 10px;
+    padding: 12px 18px; margin: 12px 0 4px; font-size: 1.05rem; font-weight: 700;
+}
+.intent-inline .intent-label { font-size: .85rem; font-weight: 700; color: #2f6bff; letter-spacing: .05em; margin-right: 8px; }
 .video-note { text-align: center; color: #8a93a5; font-size: .9rem; margin-top: 8px; }
 .video-note.done { color: #1d9d5f; font-weight: 600; }
 
@@ -76,7 +81,7 @@ video { width: 100%; border-radius: 10px; background: #000; display: block; }
     background: #2f6bff; border-color: #2f6bff; color: #fff;
 }
 .scale.disabled label { opacity: .45; pointer-events: none; }
-.scale-labels { display: flex; justify-content: space-between; font-size: .85rem; color: #566072; }
+.scale-labels { display: flex; justify-content: space-between; font-size: 1.02rem; font-weight: 600; color: #3c4658; }
 .locked-msg { color: #b2582a; font-size: .95rem; margin-top: 10px; }
 .center { text-align: center; }
 .muted { color: #8a93a5; font-size: .9rem; }
