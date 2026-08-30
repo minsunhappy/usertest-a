@@ -25,7 +25,7 @@ CONDITION_LABEL = {
     "random": "Random",
 }
 QS = ["q1", "q2", "q3"]
-Q_LABEL = {"q1": "Q1 의도 관련성", "q2": "Q2 편집 자연스러움", "q3": "Q3 전반적 만족도"}
+Q_LABEL = {"q1": "Q1 Intent relevance", "q2": "Q2 Editing naturalness", "q3": "Q3 Overall satisfaction"}
 
 
 def load_secrets_file():
