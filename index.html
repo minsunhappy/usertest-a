@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>비디오 하이라이트 자동 생성 연구: 사용자 테스트 A</title>
+<title>의도 기반 하이라이트 생성 연구</title>
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 </head>
 <body>
 <div class="wrap">
-    <h1>비디오 하이라이트 자동 생성 연구: 사용자 테스트 A</h1>
+    <h1>의도 기반 하이라이트 생성 연구</h1>
 
     <div class="card">
         <p>안녕하세요. 본 연구는 긴 비디오에서 <b><u><span class="intent-em">사용자의 의도</span>에 맞는 하이라이트를 자동으로 생성</u></b>하는 방법을 개발하고 있습니다.</p>
@@ -20,7 +20,13 @@
         <div class="example">예시) 스포츠 경기에서 득점 장면, 예능에서 웃긴 장면, 영화 명장면 등을 모아놓은 영상</div>
 
         <h3>의도(intent)란?</h3>
-        <p>본 연구에서는 각 원본 영상마다 "이런 하이라이트를 만들고 싶다"는 의도가 함께 주어집니다. 예를 들어, 같은 축구 경기 영상이라도 "메시의 골 장면만 모아서 보여줘", "모든 선수들의 세레머니를 보여줘", "음바페의 드리블을 보여줘" 등 의도에 따라 다른 하이라이트가 생성될 수 있습니다.</p>
+        <p>본 연구에서는 각 원본 영상마다 "이런 하이라이트를 만들고 싶다"는 의도가 함께 주어집니다. 예를 들어, 같은 축구 경기 영상이라도</p>
+        <div class="example-list">
+            "메시의 골 장면만 모아서 보여줘"<br>
+            "모든 선수들의 세레머니를 보여줘"<br>
+            "음바페의 드리블을 보여줘"
+        </div>
+        <p>등 의도에 따라 다른 하이라이트가 생성될 수 있습니다.</p>
         <p>각 하이라이트 영상을 보기 전에 해당 의도를 먼저 확인하시고, 그 의도를 기준으로 질문에 답변해 주시면 됩니다.</p>
     </div>
 

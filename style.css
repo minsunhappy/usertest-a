@@ -19,6 +19,7 @@ p  { margin: 8px 0; }
 }
 .notice { background: #fff8e6; border-color: #f0dfa8; }
 .intent-em { color: #d62020; font-size: 1.22em; }
+.example-list { text-align: center; font-style: italic; line-height: 2; margin: 10px 0; }
 .notice ul { margin: 6px 0 0 20px; }
 .example { color: #1e2430; font-size: 1rem; background:#f0f2f6; border-radius:8px; padding:10px 14px; margin:8px 0; }
 .btn {
