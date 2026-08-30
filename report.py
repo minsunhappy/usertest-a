@@ -5,6 +5,8 @@
 
 Reads credentials from supabase_secrets.env. QA/test accounts are excluded and
 append-only duplicates collapse to the newest row per (participant, set, condition).
+The page carries one section per scope — everyone pooled, plus each participant —
+and a filter row switches between them.
 """
 import datetime as dt
 import html
@@ -25,13 +27,6 @@ COND_LABEL = {
     "funclip": "FunClip",
     "timechat": "TimeChat",
     "random": "Random",
-}
-# categorical slots 1-4 of the validated reference palette (light / dark steps)
-COND_HUE = {
-    "intentcut_s2": ("#2a78d6", "#3987e5"),
-    "funclip": ("#eb6834", "#d95926"),
-    "timechat": ("#1baf7a", "#199e70"),
-    "random": ("#eda100", "#c98500"),
 }
 QS = [
     ("q1", "Q1 · 의도 관련도", "장면들이 주어진 의도와 얼마나 관련 있었나"),
@@ -75,10 +70,12 @@ def fetch(table, params):
 
 
 def mean(xs):
+    xs = [x for x in xs if x is not None]
     return sum(xs) / len(xs) if xs else None
 
 
 def stdev(xs):
+    xs = [x for x in xs if x is not None]
     if len(xs) < 2:
         return 0.0
     m = mean(xs)
@@ -93,12 +90,10 @@ def collect():
     resp = fetch("responses", {"select": "*", "order": "id.asc"})
 
     real = {p["id"]: p for p in people if not EXCLUDE_NAME_RE.match(p.get("name") or "")}
-    # newest row wins (edits are appended, never updated)
-    latest = {}
+    latest = {}   # newest row wins (edits are appended, never updated)
     for r in resp:
-        if r["participant_id"] not in real:
-            continue
-        latest[(r["participant_id"], r["set_id"], r["condition"])] = r
+        if r["participant_id"] in real:
+            latest[(r["participant_id"], r["set_id"], r["condition"])] = r
 
     by_person = defaultdict(list)
     for r in latest.values():
@@ -109,23 +104,11 @@ def collect():
         (done if len(rows) == 20 else partial).append((real[pid], rows))
     done.sort(key=lambda t: t[0]["created_at"])
     partial.sort(key=lambda t: t[0]["created_at"])
-    return real, done, partial
+    return done, partial
 
 
 # ── stats ───────────────────────────────────────────────────────────────
-def per_participant_means(done):
-    """{condition: {q: [one mean per participant]}} — each participant's 5 sets averaged."""
-    out = {c: {q: [] for q, _, _ in QS} for c in CONDITIONS}
-    for _, rows in done:
-        for c in CONDITIONS:
-            vals = [r for r in rows if r["condition"] == c]
-            for q, _, _ in QS:
-                out[c][q].append(mean([v[q] for v in vals]))
-    return out
-
-
 def wilcoxon_and_t(a, b):
-    """Paired tests without scipy at import time; returns (w_p, t_p) or (None, None)."""
     diffs = [x - y for x, y in zip(a, b)]
     if len(diffs) < 2 or all(d == 0 for d in diffs):
         return None, None
@@ -139,17 +122,46 @@ def cohens_dz(a, b):
     return (mean(diffs) / sd) if sd else None
 
 
+def units_pooled(done):
+    """One unit per participant: their 5 sets averaged. {cond: {q: value}}"""
+    out = []
+    for _, rows in done:
+        u = {}
+        for c in CONDITIONS:
+            vals = [r for r in rows if r["condition"] == c]
+            u[c] = {q: mean([v[q] for v in vals]) for q, _, _ in QS}
+        out.append(u)
+    return out
+
+
+def units_one_person(rows):
+    """One unit per set, for a single participant. {cond: {q: value}}"""
+    out = []
+    for s in SET_LABEL:
+        set_rows = [r for r in rows if r["set_id"] == s]
+        if not set_rows:
+            continue
+        u = {}
+        for c in CONDITIONS:
+            hit = next((r for r in set_rows if r["condition"] == c), None)
+            u[c] = {q: (hit[q] if hit else None) for q, _, _ in QS}
+        out.append(u)
+    return out
+
+
 # ── rendering ───────────────────────────────────────────────────────────
 def esc(s):
     return html.escape(str(s))
 
 
-def bar_chart(title, subtitle, values, compact=False):
-    """One bar per condition with direct value labels (relief rule).
+def mask(name):
+    name = (name or "").strip()
+    return name[0] + "○" * max(1, len(name) - 1) if name else "익명"
 
-    values: {condition: (mean, sem_or_0)}
-    """
-    W, H = (360, 240) if not compact else (300, 200)
+
+def bar_chart(title, subtitle, values, compact=False):
+    """One bar per condition, with a direct value label on each (relief rule)."""
+    W, H = (300, 200) if compact else (360, 240)
     pad_l, pad_r, pad_t, pad_b = 34, 10, 26, 46
     plot_w, plot_h = W - pad_l - pad_r, H - pad_t - pad_b
     lo, hi = 1, 7
@@ -160,7 +172,6 @@ def bar_chart(title, subtitle, values, compact=False):
         return pad_t + plot_h * (1 - (v - lo) / (hi - lo))
 
     parts = [f'<svg viewBox="0 0 {W} {H}" role="img" aria-label="{esc(title)} 조건별 평균">']
-    parts.append(f'<title>{esc(title)}</title>')
     for g in range(1, 8):
         gy = round(y(g), 1)
         parts.append(f'<line class="grid" x1="{pad_l}" x2="{W - pad_r}" y1="{gy}" y2="{gy}"/>')
@@ -176,59 +187,85 @@ def bar_chart(title, subtitle, values, compact=False):
             f'<g class="bar" style="--hue:var(--c{i + 1});">'
             f'<title>{esc(COND_LABEL[c])} · 평균 {m:.2f}{f" ± {sem:.2f}" if sem else ""}</title>'
             f'<rect x="{x:.1f}" y="{top:.1f}" width="{bar_w:.1f}" '
-            f'height="{pad_t + plot_h - top:.1f}" rx="4" ry="4"/>'
-        )
+            f'height="{pad_t + plot_h - top:.1f}" rx="4" ry="4"/>')
         if sem:
             parts.append(
                 f'<line class="err" x1="{x + bar_w / 2:.1f}" x2="{x + bar_w / 2:.1f}" '
-                f'y1="{y(min(7, m + sem)):.1f}" y2="{y(max(1, m - sem)):.1f}"/>'
-            )
+                f'y1="{y(min(7, m + sem)):.1f}" y2="{y(max(1, m - sem)):.1f}"/>')
         parts.append(
             f'<text class="val" x="{x + bar_w / 2:.1f}" y="{top - 7:.1f}" '
-            f'text-anchor="middle">{m:.1f}</text></g>'
-        )
+            f'text-anchor="middle">{m:.1f}</text></g>')
         parts.append(
             f'<text class="cond" x="{x + bar_w / 2:.1f}" y="{H - pad_b + 18}" '
-            f'text-anchor="middle">{esc(COND_LABEL[c])}</text>'
-        )
+            f'text-anchor="middle">{esc(COND_LABEL[c])}</text>')
     parts.append("</svg>")
     return (f'<figure class="chart"><figcaption><h3>{esc(title)}</h3>'
             f'<p>{esc(subtitle)}</p></figcaption>{"".join(parts)}</figure>')
 
 
-def build(real, done, partial):
-    n = len(done)
-    ppm = per_participant_means(done)
+def condition_table(stats, caption):
+    head = "".join(f'<th scope="col">{esc(t.split(" · ")[0])}</th>' for _, t, _ in QS)
+    rows = []
+    for i, c in enumerate(CONDITIONS):
+        cells = "".join(
+            (f"<td>{stats[c][q][0]:.2f}<span class='sd'> ± {stats[c][q][1]:.2f}</span></td>"
+             if stats[c][q][0] is not None else "<td>—</td>") for q, _, _ in QS)
+        rows.append(f'<tr><th scope="row"><span class="chip" style="background:var(--c{i + 1})"></span>'
+                    f'{esc(COND_LABEL[c])}</th>{cells}</tr>')
+    return (f'<div class="scroll"><table class="data"><caption>{esc(caption)}</caption>'
+            f'<thead><tr><th scope="col">조건</th>{head}</tr></thead>'
+            f'<tbody>{"".join(rows)}</tbody></table></div>')
+
+
+def significance_table(units, caption, enough):
+    rows = []
+    for q, qt, _ in QS:
+        a = [u["intentcut_s2"][q] for u in units]
+        for base in ["funclip", "timechat", "random"]:
+            b = [u[base][q] for u in units]
+            pairs = [(x, y) for x, y in zip(a, b) if x is not None and y is not None]
+            xa, xb = [p[0] for p in pairs], [p[1] for p in pairs]
+            wp, tp = wilcoxon_and_t(xa, xb) if pairs else (None, None)
+            d = cohens_dz(xa, xb) if pairs else None
+            diff = (mean(xa) - mean(xb)) if pairs else None
+            verdict = "표본 부족" if (wp is None or not enough) else (
+                "유의" if (tp is not None and tp < 0.05) else "유의차 없음")
+            cls = "sig" if verdict == "유의" else ("na" if verdict == "표본 부족" else "ns")
+            rows.append(
+                f'<tr><td>{esc(qt.split(" · ")[0])}</td><td>vs {esc(COND_LABEL[base])}</td>'
+                f'<td class="num">{f"{diff:+.2f}" if diff is not None else "—"}</td>'
+                f'<td class="num">{f"{d:.2f}" if d is not None else "—"}</td>'
+                f'<td class="num">{f"{wp:.3f}" if wp is not None else "—"}</td>'
+                f'<td class="num">{f"{tp:.3f}" if tp is not None else "—"}</td>'
+                f'<td><span class="tag {cls}">{verdict}</span></td></tr>')
+    return (f'<div class="scroll"><table class="data"><caption>{esc(caption)}</caption>'
+            f'<thead><tr><th scope="col">문항</th><th scope="col">비교</th>'
+            f'<th scope="col">평균차</th><th scope="col">Cohen d<sub>z</sub></th>'
+            f'<th scope="col">Wilcoxon p</th><th scope="col">paired-t p</th>'
+            f'<th scope="col">판정</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>')
+
+
+def section(scope_id, rowsets, tiles, warn, unit_word, enough, hidden):
+    """rowsets: list of (participant, rows) making up this scope."""
+    units = units_pooled(rowsets) if scope_id == "all" else units_one_person(rowsets[0][1])
 
     stats = {}
     for c in CONDITIONS:
         stats[c] = {}
         for q, _, _ in QS:
-            vals = [v for v in ppm[c][q] if v is not None]
-            m = mean(vals)
-            sem = (stdev(vals) / len(vals) ** 0.5) if len(vals) > 1 else 0.0
-            stats[c][q] = (m, sem)
+            vals = [u[c][q] for u in units]
+            vals = [v for v in vals if v is not None]
+            stats[c][q] = (mean(vals), (stdev(vals) / len(vals) ** 0.5) if len(vals) > 1 else 0.0)
 
-    # demographics over completed participants
-    genders = defaultdict(int)
-    ages = []
-    for p, _ in done:
-        genders[p.get("gender") or "미기재"] += 1
-        if p.get("age"):
-            ages.append(p["age"])
+    err = f" · 오차막대 = {unit_word} 간 표준오차" if len(units) > 1 else ""
+    charts = "".join(bar_chart(t, s + err, {c: stats[c][q] for c in CONDITIONS})
+                     for q, t, s in QS)
 
-    err_note = " · 오차막대 = 표준오차" if n > 1 else ""
-    charts = "".join(
-        bar_chart(t, s + err_note, {c: stats[c][q] for c in CONDITIONS})
-        for q, t, s in QS)
-
-    # per-set small multiples + tables
-    set_ids = [s for s in SET_LABEL if any(r["set_id"] == s for _, rows in done for r in rows)]
+    all_rows = [r for _, rows in rowsets for r in rows]
+    set_ids = [s for s in SET_LABEL if any(r["set_id"] == s for r in all_rows)]
 
     def set_mean(set_id, cond, q):
-        vals = [r[q] for _, rows in done for r in rows
-                if r["set_id"] == set_id and r["condition"] == cond]
-        return mean(vals)
+        return mean([r[q] for r in all_rows if r["set_id"] == set_id and r["condition"] == cond])
 
     set_charts = "".join(
         bar_chart(SET_LABEL[s], "Q1 의도 관련도",
@@ -246,95 +283,108 @@ def build(real, done, partial):
             body.append(f'<tr><th scope="row"><span class="chip" style="background:var(--c{i + 1})"></span>'
                         f'{esc(COND_LABEL[c])}</th>{cells}</tr>')
         set_tables.append(
-            f'<div class="scroll"><table class="data"><caption>{esc(qt)} · 세트별 평균</caption>'
+            f'<div class="scroll"><table class="data"><caption>{esc(qt)} · 영상별 평균</caption>'
             f'<thead><tr><th scope="col">조건</th>{head}</tr></thead>'
             f'<tbody>{"".join(body)}</tbody></table></div>')
-    set_tables = "".join(set_tables)
 
-    # per-condition table (also the relief/table view for the light-mode contrast WARN)
-    head = "".join(f"<th>{esc(t.split(' · ')[0])}</th>" for _, t, _ in QS)
-    rows = []
-    for i, c in enumerate(CONDITIONS):
-        cells = "".join(
-            f"<td>{stats[c][q][0]:.2f}<span class='sd'> ± {stats[c][q][1]:.2f}</span></td>"
-            if stats[c][q][0] is not None else "<td>—</td>" for q, _, _ in QS)
-        rows.append(f'<tr><th scope="row"><span class="chip" style="background:var(--c{i + 1})"></span>'
-                    f'{esc(COND_LABEL[c])}</th>{cells}</tr>')
-    table = (f'<table class="data"><caption>조건별 평균 (참가자 {n}명 · ± 표준오차)</caption>'
-             f'<thead><tr><th scope="col">조건</th>{head}</tr></thead>'
-             f'<tbody>{"".join(rows)}</tbody></table>')
+    cap = "조건별 평균" + (f" ({len(units)}{unit_word} · ± 표준오차)" if len(units) > 1 else "")
+    sig_cap = f"IntentCut vs 베이스라인 · {unit_word} 단위 대응 검정 (n={len(units)})"
 
-    # paired comparisons vs each baseline
-    sig_rows = []
-    for q, qt, _ in QS:
-        a = [v for v in ppm["intentcut_s2"][q] if v is not None]
-        for base in ["funclip", "timechat", "random"]:
-            b = [v for v in ppm[base][q] if v is not None]
-            wp, tp = wilcoxon_and_t(a, b)
-            d = cohens_dz(a, b)
-            diff = mean(a) - mean(b) if a and b else None
-            # p값은 참가자가 어느 정도 모여야 의미가 있다
-            verdict = "표본 부족" if (wp is None or n < 5) else (
-                "유의" if (tp is not None and tp < 0.05) else "유의차 없음")
-            cls = "sig" if verdict == "유의" else ("na" if verdict == "표본 부족" else "ns")
-            sig_rows.append(
-                f'<tr><td>{esc(qt.split(" · ")[0])}</td><td>vs {esc(COND_LABEL[base])}</td>'
-                f'<td class="num">{f"{diff:+.2f}" if diff is not None else "—"}</td>'
-                f'<td class="num">{f"{d:.2f}" if d is not None else "—"}</td>'
-                f'<td class="num">{f"{wp:.3f}" if wp is not None else "—"}</td>'
-                f'<td class="num">{f"{tp:.3f}" if tp is not None else "—"}</td>'
-                f'<td><span class="tag {cls}">{verdict}</span></td></tr>')
-    sig = (f'<table class="data"><caption>IntentCut vs 베이스라인 (참가자 단위 대응 검정)</caption>'
-           f'<thead><tr><th scope="col">문항</th><th scope="col">비교</th>'
-           f'<th scope="col">평균차</th><th scope="col">Cohen d<sub>z</sub></th>'
-           f'<th scope="col">Wilcoxon p</th><th scope="col">paired-t p</th>'
-           f'<th scope="col">판정</th></tr></thead><tbody>{"".join(sig_rows)}</tbody></table>')
+    return f"""
+    <section class="scope" data-scope="{esc(scope_id)}"{' hidden' if hidden else ''}>
+      {tiles}
+      {warn}
+      <h2>조건별 평균 점수</h2>
+      <p class="lede">{esc('참가자마다 5개 영상을 평균한 뒤, 참가자 간 평균을 냈습니다.' if scope_id == 'all' else '이 참가자가 매긴 5개 영상의 평균입니다.')}</p>
+      <div class="charts">{charts}</div>
 
-    # roster (names masked — the page is shareable)
-    def mask(name):
-        name = (name or "").strip()
-        return name[0] + "○" * max(1, len(name) - 1) if name else "익명"
+      <h2>수치와 유의성</h2>
+      <p class="lede">위 그래프와 같은 값이며, 아래는 IntentCut과 각 베이스라인의 대응 비교입니다.</p>
+      <div class="tables">
+        {condition_table(stats, cap)}
+        {significance_table(units, sig_cap, enough)}
+      </div>
 
-    roster = []
-    for p, rows in done + partial:
-        n_rows = len(rows)
-        state = ("완료" if n_rows == 20 else f"진행 중 {n_rows}/20")
-        cls = "done" if n_rows == 20 else "wip"
-        roster.append(f'<tr><td>{esc(mask(p.get("name")))}</td><td class="num">{esc(p.get("age") or "—")}</td>'
-                      f'<td>{esc(p.get("gender") or "—")}</td>'
-                      f'<td>{esc(p["created_at"][:16].replace("T", " "))}</td>'
-                      f'<td><span class="tag {cls}">{state}</span></td></tr>')
-    roster_tbl = (f'<table class="data"><caption>참가자 명단 (이름은 가림 처리)</caption>'
-                  f'<thead><tr><th scope="col">참가자</th><th scope="col">나이</th>'
-                  f'<th scope="col">성별</th><th scope="col">시작 시각 (UTC)</th>'
-                  f'<th scope="col">상태</th></tr></thead><tbody>{"".join(roster)}</tbody></table>')
+      <h2>영상별 결과</h2>
+      <p class="lede">원본 영상 5개 각각에서 조건이 어떻게 갈렸는지 봅니다. 막대는 Q1 의도 관련도입니다.</p>
+      <div class="charts">{set_charts}</div>
+      <div class="tables" style="margin-top:22px">{"".join(set_tables)}</div>
+    </section>"""
 
+
+def build(done, partial):
+    n = len(done)
+
+    genders = defaultdict(int)
+    ages = []
+    for p, _ in done:
+        genders[p.get("gender") or "미기재"] += 1
+        if p.get("age"):
+            ages.append(p["age"])
     gender_bits = " · ".join(f"{g} {c}명" for g, c in sorted(genders.items(), key=lambda kv: -kv[1]))
-    age_bit = f"{mean(ages):.0f}<em>세</em>" if ages else "—"
+    age_val = f"{mean(ages):.0f}<em>세</em>" if ages else "—"
     age_sub = f"범위 {min(ages)}–{max(ages)}세" if ages else "완료 참가자 기준"
-    warn = ""
-    if n < 2:
-        warn = ('<p class="warn">참가자가 ' + str(n) + '명뿐이라 아래 검정은 아직 의미가 없습니다. '
-                '평균은 경향 확인용으로만 보세요.</p>')
-    elif n < 10:
-        warn = ('<p class="warn">참가자 ' + str(n) + '명 기준입니다. 표본이 작아 p값은 잠정치로 보세요.</p>')
 
-    stamp = dt.datetime.now(dt.timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M")
-    tiles = f"""
+    tiles_all = f"""
     <div class="tiles">
       <div class="tile"><span class="k">완료 참가자</span><strong>{n}<em>명</em></strong>
         <span class="sub">{esc(gender_bits) or "—"}</span></div>
       <div class="tile"><span class="k">진행 중</span><strong>{len(partial)}<em>명</em></strong>
         <span class="sub">20문항 미완료</span></div>
-      <div class="tile"><span class="k">평균 나이</span><strong>{age_bit}</strong>
+      <div class="tile"><span class="k">평균 나이</span><strong>{age_val}</strong>
         <span class="sub">{esc(age_sub)}</span></div>
       <div class="tile"><span class="k">수집 응답</span><strong>{n * 20}<em>개</em></strong>
-        <span class="sub">5세트 × 4조건 × {n}명</span></div>
+        <span class="sub">5영상 × 4조건 × {n}명</span></div>
     </div>"""
 
-    return TEMPLATE.format(stamp=esc(stamp), tiles=tiles, warn=warn, charts=charts,
-                           table=table, sig=sig, set_charts=set_charts,
-                           set_tables=set_tables, roster=roster_tbl)
+    warn_all = ""
+    if n < 2:
+        warn_all = f'<p class="warn">참가자가 {n}명뿐이라 아래 검정은 아직 의미가 없습니다. 평균은 경향 확인용으로만 보세요.</p>'
+    elif n < 5:
+        warn_all = f'<p class="warn">참가자 {n}명 기준입니다. 표본이 작아 유의성 판정은 보류하고 p값만 참고로 표시합니다.</p>'
+    elif n < 10:
+        warn_all = f'<p class="warn">참가자 {n}명 기준입니다. 표본이 작아 p값은 잠정치로 보세요.</p>'
+
+    sections = [section("all", done, tiles_all, warn_all, "참가자", enough=(n >= 5), hidden=False)]
+    tabs = ['<button class="tab" type="button" data-target="all" aria-pressed="true">전체</button>']
+
+    for p, rows in done:
+        pid = p["id"]
+        favourite = max(CONDITIONS, key=lambda c: mean([r["q3"] for r in rows if r["condition"] == c]) or 0)
+        tiles_p = f"""
+        <div class="tiles">
+          <div class="tile"><span class="k">참가자</span><strong class="sm">{esc(mask(p.get("name")))}</strong>
+            <span class="sub">{esc(p.get("age") or "—")}세 · {esc(p.get("gender") or "—")}</span></div>
+          <div class="tile"><span class="k">응답</span><strong>{len(rows)}<em>개</em></strong>
+            <span class="sub">5영상 × 4조건</span></div>
+          <div class="tile"><span class="k">가장 만족한 조건</span><strong class="sm">{esc(COND_LABEL[favourite])}</strong>
+            <span class="sub">Q3 기준</span></div>
+          <div class="tile"><span class="k">참여 시각</span><strong class="sm">{esc(p["created_at"][:16].replace("T", " "))}</strong>
+            <span class="sub">UTC</span></div>
+        </div>"""
+        warn_p = ('<p class="warn">한 사람의 응답입니다. 아래 검정은 이 사람의 5개 영상을 짝지은 것이라 '
+                  '개인 안에서의 경향만 보여주며, 참가자 전체로 일반화할 수 없습니다.</p>')
+        sections.append(section(pid, [(p, rows)], tiles_p, warn_p, "영상", enough=False, hidden=True))
+        tabs.append(f'<button class="tab" type="button" data-target="{esc(pid)}" '
+                    f'aria-pressed="false">{esc(mask(p.get("name")))}</button>')
+
+    roster = []
+    for p, rows in done + partial:
+        n_rows = len(rows)
+        state = "완료" if n_rows == 20 else f"진행 중 {n_rows}/20"
+        cls = "done" if n_rows == 20 else "wip"
+        roster.append(f'<tr><td>{esc(mask(p.get("name")))}</td><td class="num">{esc(p.get("age") or "—")}</td>'
+                      f'<td>{esc(p.get("gender") or "—")}</td>'
+                      f'<td>{esc(p["created_at"][:16].replace("T", " "))}</td>'
+                      f'<td><span class="tag {cls}">{state}</span></td></tr>')
+    roster_tbl = (f'<div class="scroll"><table class="data"><caption>참가자 명단 (이름은 가림 처리)</caption>'
+                  f'<thead><tr><th scope="col">참가자</th><th scope="col">나이</th>'
+                  f'<th scope="col">성별</th><th scope="col">시작 시각 (UTC)</th>'
+                  f'<th scope="col">상태</th></tr></thead><tbody>{"".join(roster)}</tbody></table></div>')
+
+    stamp = dt.datetime.now(dt.timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M")
+    return TEMPLATE.format(stamp=esc(stamp), tabs="".join(tabs),
+                           sections="".join(sections), roster=roster_tbl)
 
 
 TEMPLATE = """<title>의도 기반 하이라이트 평가 결과</title>
@@ -344,12 +394,8 @@ TEMPLATE = """<title>의도 기반 하이라이트 평가 결과</title>
 <style>
 :root {{
   color-scheme: light;
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --line: #e3e6ec;
-  --ink: #14181f;
-  --ink-2: #4a5261;
-  --ink-3: #6f7787;
+  --bg: #f6f7f9; --surface: #ffffff; --line: #e3e6ec;
+  --ink: #14181f; --ink-2: #4a5261; --ink-3: #6f7787;
   --accent: #1f4f96;
   --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a; --c4: #eda100;
   --good-bg: #e7f4ec; --good-ink: #16653a;
@@ -359,13 +405,8 @@ TEMPLATE = """<title>의도 기반 하이라이트 평가 결과</title>
 @media (prefers-color-scheme: dark) {{
   :root:not([data-theme="light"]) {{
     color-scheme: dark;
-    --bg: #14161a;
-    --surface: #1c1f25;
-    --line: #2c313a;
-    --ink: #f2f4f8;
-    --ink-2: #b9c0cd;
-    --ink-3: #8d95a4;
-    --accent: #86b3f0;
+    --bg: #14161a; --surface: #1c1f25; --line: #2c313a;
+    --ink: #f2f4f8; --ink-2: #b9c0cd; --ink-3: #8d95a4; --accent: #86b3f0;
     --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500;
     --good-bg: #14361f; --good-ink: #8fd6a8;
     --ns-bg: #262b33;  --ns-ink: #b9c0cd;
@@ -388,7 +429,7 @@ body {{
   font-size: 15px; line-height: 1.65;
 }}
 .page {{ max-width: 1120px; margin: 0 auto; padding: 44px 24px 80px; }}
-header.top {{ border-bottom: 1px solid var(--line); padding-bottom: 22px; margin-bottom: 26px; }}
+header.top {{ border-bottom: 1px solid var(--line); padding-bottom: 22px; margin-bottom: 22px; }}
 h1 {{
   font-family: "Gowun Batang", Georgia, serif; font-weight: 700;
   font-size: clamp(1.7rem, 3.4vw, 2.3rem); line-height: 1.25; margin: 0 0 6px;
@@ -404,6 +445,20 @@ h2 {{
   margin: 44px 0 4px; letter-spacing: -0.01em;
 }}
 h2 + .lede {{ color: var(--ink-2); margin: 0 0 16px; font-size: .95rem; }}
+.filters {{ display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 22px; }}
+.filters .k {{
+  font-size: .78rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-3); margin-right: 4px;
+}}
+.tab {{
+  font: inherit; font-size: .92rem; font-weight: 500; cursor: pointer;
+  background: var(--surface); color: var(--ink-2);
+  border: 1px solid var(--line); border-radius: 999px; padding: 6px 16px;
+  transition: background .12s, color .12s, border-color .12s;
+}}
+.tab:hover {{ border-color: var(--accent); color: var(--ink); }}
+.tab[aria-pressed="true"] {{ background: var(--accent); border-color: var(--accent); color: #fff; }}
+.tab:focus-visible {{ outline: 2px solid var(--accent); outline-offset: 2px; }}
 .tiles {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }}
 .tile {{
   background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
@@ -414,6 +469,7 @@ h2 + .lede {{ color: var(--ink-2); margin: 0 0 16px; font-size: .95rem; }}
   font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 1.75rem; font-weight: 500;
   line-height: 1.2; font-variant-numeric: tabular-nums;
 }}
+.tile strong.sm {{ font-family: "IBM Plex Sans KR", sans-serif; font-size: 1.15rem; font-weight: 600; }}
 .tile strong em {{ font-style: normal; font-size: .95rem; color: var(--ink-2); margin-left: 3px; }}
 .tile .sub {{ font-size: .85rem; color: var(--ink-2); }}
 .warn {{
@@ -431,10 +487,7 @@ h2 + .lede {{ color: var(--ink-2); margin: 0 0 16px; font-size: .95rem; }}
 .grid {{ stroke: var(--line); stroke-width: 1; }}
 .axis {{ fill: var(--ink-3); font-size: 10px; font-family: "IBM Plex Mono", monospace; }}
 .cond {{ fill: var(--ink-2); font-size: 11px; font-weight: 500; }}
-.val {{
-  fill: var(--ink); font-size: 12px; font-weight: 500;
-  font-family: "IBM Plex Mono", monospace;
-}}
+.val {{ fill: var(--ink); font-size: 12px; font-weight: 500; font-family: "IBM Plex Mono", monospace; }}
 .bar rect {{ fill: var(--hue); transition: opacity .12s; }}
 .bar:hover rect {{ opacity: .78; }}
 .err {{ stroke: var(--ink-2); stroke-width: 2; }}
@@ -458,14 +511,10 @@ table.data tbody tr:last-child th, table.data tbody tr:last-child td {{ border-b
 table.data td, table.data .num {{ font-family: "IBM Plex Mono", ui-monospace, monospace; }}
 table.data tbody th {{ font-weight: 500; }}
 .sd {{ color: var(--ink-3); font-size: .84em; }}
-.chip {{
-  display: inline-block; width: 10px; height: 10px; border-radius: 3px;
-  margin-right: 8px; vertical-align: baseline;
-}}
-.tag {{
-  display: inline-block; padding: 2px 9px; border-radius: 999px;
-  font-size: .8rem; font-weight: 600; font-family: "IBM Plex Sans KR", sans-serif;
-}}
+.chip {{ display: inline-block; width: 10px; height: 10px; border-radius: 3px;
+  margin-right: 8px; vertical-align: baseline; }}
+.tag {{ display: inline-block; padding: 2px 9px; border-radius: 999px;
+  font-size: .8rem; font-weight: 600; font-family: "IBM Plex Sans KR", sans-serif; }}
 .tag.sig, .tag.done {{ background: var(--good-bg); color: var(--good-ink); }}
 .tag.ns, .tag.na {{ background: var(--ns-bg); color: var(--ns-ink); }}
 .tag.wip {{ background: var(--wip-bg); color: var(--wip-ink); }}
@@ -481,38 +530,35 @@ footer {{ margin-top: 46px; padding-top: 18px; border-top: 1px solid var(--line)
     <p class="stamp">마지막 갱신 {stamp} · 7점 척도, 점수가 높을수록 좋음</p>
   </header>
 
-  {tiles}
-  {warn}
-
-  <h2>조건별 평균 점수</h2>
-  <p class="lede">참가자마다 5개 세트를 평균한 뒤, 참가자 간 평균을 냈습니다.</p>
-  <div class="charts">{charts}</div>
-
-  <h2>수치와 유의성</h2>
-  <p class="lede">위 그래프와 같은 값이며, 아래는 IntentCut과 각 베이스라인의 대응 비교입니다.</p>
-  <div class="tables">
-    <div class="scroll">{table}</div>
-    <div class="scroll">{sig}</div>
+  <div class="filters" role="group" aria-label="결과 범위">
+    <span class="k">보기</span>{tabs}
   </div>
 
-  <h2>영상별 결과</h2>
-  <p class="lede">원본 영상 5개 각각에서 조건이 어떻게 갈렸는지 봅니다. 막대는 Q1 의도 관련도입니다.</p>
-  <div class="charts">{set_charts}</div>
-  <div class="tables" style="margin-top:22px">{set_tables}</div>
+  {sections}
 
   <h2>참가자</h2>
-  <p class="lede">개인정보 보호를 위해 이름은 첫 글자만 표시합니다.</p>
-  <div class="tables"><div class="scroll">{roster}</div></div>
+  <p class="lede">개인정보 보호를 위해 이름은 첫 글자만 표시합니다. 위 버튼으로 개인별 결과를 볼 수 있습니다.</p>
+  <div class="tables">{roster}</div>
 
   <footer>
     IntentCut = 제안 방법 · FunClip / TimeChat / Random = 베이스라인.
     수정된 응답은 최신 제출본만 집계하며, 개발·QA 계정은 제외했습니다.
   </footer>
 </div>
+
+<script>
+const tabs = [...document.querySelectorAll(".tab")];
+const scopes = [...document.querySelectorAll(".scope")];
+tabs.forEach(tab => tab.addEventListener("click", () => {{
+  tabs.forEach(t => t.setAttribute("aria-pressed", String(t === tab)));
+  const target = tab.dataset.target;
+  scopes.forEach(s => {{ s.hidden = s.dataset.scope !== target; }});
+}}));
+</script>
 """
 
 
 if __name__ == "__main__":
-    real, done, partial = collect()
-    OUT.write_text(build(real, done, partial))
+    done, partial = collect()
+    OUT.write_text(build(done, partial))
     print(f"완료 참가자 {len(done)}명 / 진행 중 {len(partial)}명 → {OUT}")
