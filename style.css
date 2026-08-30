@@ -6,6 +6,8 @@ body {
     line-height: 1.65;
 }
 .wrap { max-width: 860px; margin: 0 auto; padding: 40px 24px 80px; }
+/* test page is two-column, so it needs more room */
+body.test-page .wrap { max-width: 1360px; }
 h1 { font-size: 1.7rem; margin-bottom: 8px; }
 h2 { font-size: 1.25rem; margin: 28px 0 10px; }
 h3 { font-size: 1.05rem; margin: 18px 0 6px; }
@@ -44,6 +46,7 @@ label.field { display: block; font-weight: 600; margin: 14px 0 6px; }
 /* progress */
 .progress-bar { position: sticky; top: 0; z-index: 10; background: #fff; border-bottom: 1px solid #e2e5ea; }
 .progress-inner { max-width: 860px; margin: 0 auto; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; font-size: .95rem; color: #566072; }
+body.test-page .progress-inner { max-width: 1360px; }
 .progress-track { height: 6px; background: #e6e9ef; }
 .progress-fill { height: 6px; background: #2f6bff; width: 0; transition: width .3s; }
 
@@ -57,23 +60,37 @@ label.field { display: block; font-weight: 600; margin: 14px 0 6px; }
 .intent-box .intent-en { font-size: .95rem; color: #566072; margin-top: 4px; }
 
 video { width: 100%; border-radius: 10px; background: #000; display: block; }
+/* video + its 3 questions side by side so one highlight fits on screen */
+.set-header { padding: 16px 24px; }
+.set-header h2 { margin: 0 0 2px; font-size: 1.15rem; }
+.set-header p { margin: 0; }
+.set-header .intent-box { padding: 12px 18px; margin: 8px 0 0; font-size: 1.05rem; }
+.video-card { padding: 20px 24px; }
+.video-card h2 { margin: 0 0 10px; font-size: 1.1rem; }
+.video-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.video-grid video { max-height: 58vh; object-fit: contain; }
+@media (max-width: 1000px) {
+    .video-grid { grid-template-columns: 1fr; gap: 12px; }
+    .video-grid video { max-height: none; }
+}
 .intent-inline {
     background: #eef3ff; border: 1.5px solid #b9ccff; border-radius: 10px;
-    padding: 12px 18px; margin: 12px 0 4px; font-size: 1.05rem; font-weight: 700;
+    padding: 10px 16px; margin: 8px 0 0; font-size: 1.02rem; font-weight: 700;
 }
 .intent-inline .intent-label { font-size: .85rem; font-weight: 700; color: #2f6bff; letter-spacing: .05em; margin-right: 8px; }
 .video-note { text-align: center; color: #8a93a5; font-size: .9rem; margin-top: 8px; }
 .video-note.done { color: #1d9d5f; font-weight: 600; }
 
 /* questions */
-.question { border-top: 1px solid #edf0f4; padding: 20px 0 6px; }
-.question:first-of-type { border-top: none; }
+.question { border-top: 1px solid #edf0f4; padding: 12px 0 4px; }
+.question:first-of-type { border-top: none; padding-top: 0; }
+.question .q-head { line-height: 1.45; }
 .question .q-title { font-weight: 700; }
-.question .q-note { color: #566072; font-size: .92rem; }
-.scale { display: flex; gap: 6px; margin: 14px 0 4px; }
+.question .q-note { color: #566072; font-size: .88rem; line-height: 1.4; }
+.scale { display: flex; gap: 5px; margin: 8px 0 3px; }
 .scale label {
-    flex: 1; text-align: center; padding: 10px 0; border: 1.5px solid #cfd5df;
-    border-radius: 8px; cursor: pointer; font-weight: 600; user-select: none;
+    flex: 1; text-align: center; padding: 5px 0; border: 1.5px solid #cfd5df;
+    border-radius: 7px; cursor: pointer; font-weight: 600; user-select: none;
     background: #fff; transition: all .1s;
 }
 .scale input { display: none; }
@@ -83,7 +100,8 @@ video { width: 100%; border-radius: 10px; background: #000; display: block; }
 .scale.disabled label { opacity: .45; pointer-events: none; }
 .scale.disabled { cursor: not-allowed; }
 .video-note.attention { color: #d33f0f; font-weight: 700; transition: color .2s; }
-.scale-labels { display: flex; justify-content: space-between; font-size: 1.02rem; font-weight: 600; color: #3c4658; }
+.scale-labels { display: flex; justify-content: space-between; gap: 10px; font-size: .95rem; font-weight: 600; color: #3c4658; }
+.scale-labels span:nth-child(2) { white-space: nowrap; }
 .locked-msg { color: #b2582a; font-size: .95rem; margin-top: 10px; }
 .center { text-align: center; }
 .muted { color: #8a93a5; font-size: .9rem; }

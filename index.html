@@ -30,17 +30,17 @@
         <p>하나의 원본 영상에 대해 네 가지 다른 방법으로 생성된 약 1분 길이의 하이라이트 영상을 시청하게 됩니다.<br>
         각 하이라이트 영상을 본 후, 다음 세 가지 질문에 답변해 주시기 바랍니다.</p>
 
-        <h3>질문1. 의도 관련성</h3>
-        <p>이 하이라이트에 포함된 장면들이 주어진 의도와 얼마나 관련이 있었나요?<br>
+        <h3>질문1. [의도 관련성]</h3>
+        <p>이 하이라이트에 포함된 장면들이 <b><u>주어진 의도와 얼마나 관련</u></b>이 있었나요?<br>
         <span class="muted">1: 의도와 무관한 장면이 많았다 / 4: 보통이다 / 7: 모든 장면이 의도와 관련 있었다</span></p>
 
-        <h3>질문2. 편집 자연스러움</h3>
-        <p>하이라이트 전체가 하나의 자연스러운 편집처럼 느껴졌나요?<br>
+        <h3>질문2. [편집 자연스러움]</h3>
+        <p>하이라이트 전체가 <b><u>하나의 자연스러운 편집</u></b>처럼 느껴졌나요?<br>
         <span class="muted">(자연스럽지 않은 경우: 장면이 뚝뚝 끊기거나 잘린 느낌이 든다, 각 장면의 맥락을 파악하기 힘들다)<br>
         1: 전혀 자연스럽지 않다 / 4: 보통이다 / 7: 매우 자연스럽다</span></p>
 
-        <h3>질문3. 전반적 만족도</h3>
-        <p>이 하이라이트의 전반적인 시청 경험에 얼마나 만족하시나요?<br>
+        <h3>질문3. [전반적 만족도]</h3>
+        <p>이 하이라이트의 <b><u>전반적인 시청 경험</u></b>에 얼마나 만족하시나요?<br>
         <span class="muted">1: 전혀 만족스럽지 않다 / 4: 보통이다 / 7: 매우 만족스럽다</span></p>
     </div>
 
@@ -48,10 +48,10 @@
         <h2>중요 안내사항</h2>
         <ul>
             <li><b>반드시 소리를 켜고</b> 시청해 주세요.</li>
-            <li>각 영상을 처음부터 끝까지 <b>스킵 없이</b> 모두 시청해 주세요. (영상을 끝까지 봐야 질문에 답할 수 있습니다)</li>
+            <li>각 영상을 처음부터 끝까지 <b>스킵 없이</b> 모두 시청해 주세요.</li>
             <li><b>PC(컴퓨터)</b>에서 참여해 주세요.</li>
         </ul>
-        <p style="margin-top:12px;">영상은 총 <b>네 개씩 다섯 세트</b>이며, 예상 소요시간은 <b>30~35분</b>입니다.</p>
+        <p style="margin-top:12px;">영상은 총 <b>네 개씩 다섯 세트</b>이며, 예상 소요시간은 <b>약 25분</b>입니다.</p>
     </div>
 
     <div class="card">
@@ -88,6 +88,11 @@ if (existing) {
     if (!st.finished && st.version === 2) {
         document.getElementById("resumeNote").hidden = false;
         document.getElementById("pname").value = st.participant.name || "";
+        if (st.participant.age) document.getElementById("page").value = st.participant.age;
+        if (st.participant.gender) {
+            const r = document.querySelector(`input[name="pgender"][value="${st.participant.gender}"]`);
+            if (r) r.checked = true;
+        }
     }
 }
 
@@ -99,11 +104,19 @@ document.getElementById("startBtn").addEventListener("click", async () => {
     const gender = document.querySelector('input[name="pgender"]:checked')?.value;
     if (!gender) { alert("성별을 선택해 주세요."); return; }
 
-    // resume if an unfinished session exists for the same name
+    // resume an unfinished session, applying any edits to the participant info
     const prev = localStorage.getItem("ut_state");
     if (prev) {
         const st = JSON.parse(prev);
-        if (!st.finished && st.version === 2 && st.participant.name === name) {
+        if (!st.finished && st.version === 2) {
+            Object.assign(st.participant, { name, age, gender });
+            localStorage.setItem("ut_state", JSON.stringify(st));
+            if (supabaseClient) {
+                try {
+                    await supabaseClient.from("participants")
+                        .update({ name, age, gender }).eq("id", st.participant.id);
+                } catch (e) { console.warn("participant update failed", e); }
+            }
             location.href = "test.html";
             return;
         }

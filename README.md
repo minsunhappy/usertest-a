@@ -50,8 +50,12 @@ Participants with incomplete data (≠20 responses) are excluded automatically.
 
 ## Anti-skip measures
 
-- Questions unlock only after the video fires `ended`.
-- Forward seeking is snapped back (rewinding allowed); playback rate locked to 1×.
-- Progress is stored in `localStorage`, so a refresh resumes where the
-  participant left off; each response is uploaded immediately with a retry
-  queue flushed on the final page.
+Currently **off**: `REQUIRE_FULL_WATCH = false` in `config.js`. Questions are
+answerable right away and seeking is unrestricted; participants are only asked
+in the instructions to watch each video fully. Flip the flag to `true` to
+re-enable gating (questions unlock on `ended`, forward seeks snap back).
+
+Playback rate is always locked to 1×. Progress is stored in `localStorage`, so a
+refresh resumes where the participant left off, and the "← 이전 세트" button
+(or "← 참가자 정보 수정" on set 1) goes back with answers editable; each set's
+responses upload on advance with a retry queue flushed on the final page.

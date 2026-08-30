@@ -93,6 +93,8 @@ def main():
               + ", ".join(f"{pid[:8]}({n})" for pid, n in incomplete.items()))
     df = df[df.participant_id.isin(complete_ids)].copy()
     n = df.participant_id.nunique()
+    if n == 0:
+        sys.exit("No complete participants yet (each needs 20 responses) — nothing to analyze.")
     print(f"participants analyzed: {n} ({len(df)} responses)")
     df.to_csv(OUT / "responses_raw.csv", index=False)
 

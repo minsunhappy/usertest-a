@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 </head>
-<body>
+<body class="test-page">
 <div class="progress-bar">
     <div class="progress-inner">
         <span id="progressText"></span>
@@ -54,10 +54,9 @@ function render() {
         const a = answers[fk] || {};
         const qHtml = QUESTIONS.map(q => `
             <div class="question">
-                <div class="q-title">${q.title}</div>
-                <div>${q.text}</div>
+                <div class="q-head"><span class="q-title">${q.title}</span> ${q.text}</div>
                 ${q.note ? `<div class="q-note">${q.note}</div>` : ""}
-                <div class="scale ${a.watched ? "" : "disabled"}" id="scale-${fk}-${q.key}">
+                <div class="scale ${(!REQUIRE_FULL_WATCH || a.watched) ? "" : "disabled"}" id="scale-${fk}-${q.key}">
                     ${[1,2,3,4,5,6,7].map(v => `
                         <label><input type="radio" name="${fk}-${q.key}" value="${v}" ${a[q.key] === v ? "checked" : ""}><span>${v}</span></label>
                     `).join("")}
@@ -65,21 +64,27 @@ function render() {
                 <div class="scale-labels"><span>${q.low}</span><span>${q.mid}</span><span>${q.high}</span></div>
             </div>`).join("");
         return `
-        <div class="card" data-fk="${fk}">
+        <div class="card video-card" data-fk="${fk}">
             <h2>하이라이트 ${i + 1} / 4</h2>
-            <video id="player-${fk}" src="data/${set.set_id}/${fk}.mp4" controls controlslist="nodownload noplaybackrate" disablepictureinpicture preload="metadata"></video>
-            <div class="video-note ${a.watched ? "done" : ""}" id="note-${fk}">
-                ${a.watched ? "✓ 시청 완료! 아래 질문에 답해 주세요." : "▶ 영상을 처음부터 끝까지 시청하면 아래 질문이 활성화됩니다. (앞으로 건너뛰기 불가)"}
+            <div class="video-grid">
+                <div class="video-col">
+                    <video id="player-${fk}" src="data/${set.set_id}/${fk}.mp4" controls controlslist="nodownload noplaybackrate" disablepictureinpicture preload="metadata"></video>
+                    <div class="video-note ${a.watched ? "done" : ""}" id="note-${fk}">
+                        ${a.watched ? "✓ 시청 완료! 질문에 답해 주세요."
+                          : REQUIRE_FULL_WATCH ? "▶ 영상을 처음부터 끝까지 시청하면 질문이 활성화됩니다. (앞으로 건너뛰기 불가)"
+                          : "▶ 영상을 처음부터 끝까지 시청한 후 답변해 주세요."}
+                    </div>
+                    <div class="intent-inline"><span class="intent-label">INTENT · 의도</span> “${set.intent_ko}”</div>
+                </div>
+                <div class="q-col">${qHtml}</div>
             </div>
-            <div class="intent-inline"><span class="intent-label">INTENT · 의도</span> “${set.intent_ko}”</div>
-            ${qHtml}
         </div>`;
     }).join("");
 
     el.innerHTML = `
-    <div class="card">
+    <div class="card set-header">
         <h2>세트 ${state.cursor.setIdx + 1}</h2>
-        <p>아래 <b>의도</b>를 먼저 확인해 주세요. 이 페이지의 하이라이트 4개를 모두 이 의도를 기준으로 평가합니다.</p>
+        <p class="muted">아래 <b>의도</b>를 기준으로 이 페이지의 하이라이트 4개를 평가해 주세요.</p>
         <div class="intent-box">
             <div class="intent-label">INTENT · 의도</div>
             <div class="intent-text">“${set.intent_ko}”</div>
@@ -87,7 +92,7 @@ function render() {
     </div>
     ${blocks}
     <div class="btn-row">
-        ${state.cursor.setIdx > 0 ? `<button class="btn btn-secondary" id="prevBtn">← 이전 세트</button> ` : ""}
+        <button class="btn btn-secondary" id="prevBtn">${state.cursor.setIdx > 0 ? "← 이전 세트" : "← 참가자 정보 수정"}</button>
         <button class="btn" id="nextBtn" disabled>${state.cursor.setIdx < state.setOrder.length - 1 ? "다음 세트 →" : "제출하고 완료하기"}</button>
     </div>
     <p class="center muted">4개 영상을 모두 시청하고 질문에 답하면 다음으로 넘어갈 수 있습니다.</p>`;
@@ -114,7 +119,7 @@ function render() {
             }
         });
         video.addEventListener("timeupdate", () => {
-            if (!a.watched && video.currentTime > maxPlayed + 1.0) {
+            if (REQUIRE_FULL_WATCH && !a.watched && video.currentTime > maxPlayed + 1.0) {
                 video.currentTime = maxPlayed; // block forward seeking until first full watch
             } else if (video.currentTime > maxPlayed) {
                 maxPlayed = video.currentTime;
@@ -139,7 +144,7 @@ function render() {
     const nextBtn = document.getElementById("nextBtn");
     function checkComplete() {
         const done = fileKeys.every(fk =>
-            answers[fk]?.watched &&
+            (!REQUIRE_FULL_WATCH || answers[fk]?.watched) &&
             QUESTIONS.every(q => document.querySelector(`input[name="${fk}-${q.key}"]:checked`))
         );
         nextBtn.disabled = !done;
@@ -162,8 +167,12 @@ function render() {
     checkComplete();
 
     const prevBtn = document.getElementById("prevBtn");
-    if (prevBtn) prevBtn.addEventListener("click", () => {
+    prevBtn.addEventListener("click", () => {
         pauseAll(fileKeys);
+        if (state.cursor.setIdx === 0) {
+            location.href = "index.html"; // back to the participant info form
+            return;
+        }
         state.cursor.setIdx -= 1;
         saveState();
         window.scrollTo(0, 0);
