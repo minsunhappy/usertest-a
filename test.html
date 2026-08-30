@@ -37,14 +37,56 @@ function setAnswers(setId) {
 }
 
 function renderProgress() {
+    const n = state.setOrder.length;
+    const stepsDone = state.cursor.setIdx * 2 + (state.cursor.stage === "videos" ? 1 : 0);
     document.getElementById("progressText").textContent =
-        `세트 ${state.cursor.setIdx + 1} / ${state.setOrder.length}`;
-    document.getElementById("progressFill").style.width =
-        `${(state.cursor.setIdx / state.setOrder.length) * 100}%`;
+        `세트 ${state.cursor.setIdx + 1} / ${n}` +
+        (state.cursor.stage === "intent" ? " · 의도 확인" : "");
+    document.getElementById("progressFill").style.width = `${(stepsDone / (n * 2)) * 100}%`;
 }
 
+// 세트마다: 의도만 보여주는 페이지 → 영상 4개 + 질문 페이지
 function render() {
+    if (state.cursor.stage !== "videos") state.cursor.stage = "intent";
     renderProgress();
+    if (state.cursor.stage === "intent") renderIntentPage();
+    else renderVideosPage();
+}
+
+function renderIntentPage() {
+    const set = currentSet();
+    const el = document.getElementById("content");
+    el.innerHTML = `
+    <div class="card intent-page">
+        <h2>세트 ${state.cursor.setIdx + 1} / ${state.setOrder.length}</h2>
+        <p>이번 세트의 <b>의도</b>입니다. 충분히 읽고 확인한 뒤 다음으로 넘어가 주세요.<br>
+        다음 페이지의 하이라이트 4개를 모두 이 의도를 기준으로 평가하시면 됩니다.</p>
+        <div class="intent-box intent-box-lg">
+            <div class="intent-text"><span class="intent-label">의도:</span> “${set.intent_ko}”</div>
+        </div>
+        <div class="btn-row">
+            <button class="btn btn-secondary" id="prevBtn">${state.cursor.setIdx > 0 ? "← 이전 세트" : "← 참가자 정보 수정"}</button>
+            <button class="btn" id="toVideosBtn">확인했습니다 · 영상 보기 →</button>
+        </div>
+    </div>`;
+
+    document.getElementById("toVideosBtn").addEventListener("click", () => {
+        state.cursor.stage = "videos";
+        saveState();
+        window.scrollTo(0, 0);
+        render();
+    });
+    document.getElementById("prevBtn").addEventListener("click", () => {
+        if (state.cursor.setIdx === 0) { location.href = "index.html"; return; }
+        state.cursor.setIdx -= 1;
+        state.cursor.stage = "videos";   // 이전 세트의 영상/질문 페이지로
+        saveState();
+        window.scrollTo(0, 0);
+        render();
+    });
+}
+
+function renderVideosPage() {
     const set = currentSet();
     const answers = setAnswers(set.set_id);
     const fileKeys = state.conditionOrders[set.set_id];
@@ -93,7 +135,7 @@ function render() {
     </div>
     ${blocks}
     <div class="btn-row">
-        <button class="btn btn-secondary" id="prevBtn">${state.cursor.setIdx > 0 ? "← 이전 세트" : "← 참가자 정보 수정"}</button>
+        <button class="btn btn-secondary" id="prevBtn">← 의도 다시 보기</button>
         <button class="btn" id="nextBtn" disabled>${state.cursor.setIdx < state.setOrder.length - 1 ? "다음 세트 →" : "제출하고 완료하기"}</button>
     </div>
     <p class="center muted">4개 영상의 질문에 모두 답하면 다음으로 넘어갈 수 있습니다.</p>`;
@@ -170,11 +212,7 @@ function render() {
     const prevBtn = document.getElementById("prevBtn");
     prevBtn.addEventListener("click", () => {
         pauseAll(fileKeys);
-        if (state.cursor.setIdx === 0) {
-            location.href = "index.html"; // back to the participant info form
-            return;
-        }
-        state.cursor.setIdx -= 1;
+        state.cursor.stage = "intent";   // 이 세트의 의도 페이지로
         saveState();
         window.scrollTo(0, 0);
         render();
@@ -186,6 +224,7 @@ function render() {
         await uploadSet(set, fileKeys, answers);
         if (state.cursor.setIdx < state.setOrder.length - 1) {
             state.cursor.setIdx += 1;
+            state.cursor.stage = "intent";   // 다음 세트는 의도 페이지부터
             saveState();
             window.scrollTo(0, 0);
             render();
