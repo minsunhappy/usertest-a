@@ -28,10 +28,22 @@ QS = ["q1", "q2", "q3"]
 Q_LABEL = {"q1": "Q1 의도 관련성", "q2": "Q2 편집 자연스러움", "q3": "Q3 전반적 만족도"}
 
 
+def load_secrets_file():
+    env_path = Path(__file__).resolve().parent / "supabase_secrets.env"
+    if env_path.exists():
+        for line in env_path.read_text().splitlines():
+            if "=" in line and not line.strip().startswith("#"):
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
+
+
 def fetch_supabase() -> pd.DataFrame:
     import requests
+    load_secrets_file()
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_SERVICE_KEY")
+    if key and "붙여넣기" in key:
+        sys.exit("supabase_secrets.env의 SUPABASE_SERVICE_KEY를 실제 service_role 키로 바꿔주세요.")
     if not url or not key:
         sys.exit("Set SUPABASE_URL and SUPABASE_SERVICE_KEY, or pass local backup JSON files.")
     rows, offset, page = [], 0, 1000
