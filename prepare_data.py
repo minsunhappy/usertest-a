@@ -18,7 +18,7 @@ OUT_ROOT = Path(__file__).resolve().parent / "data"
 SETS = [
     ("baseball",     "baseball_pr_mexico_0827_full",         "0827_1", "양 팀의 홈런 장면을 모두 모아줘"),
     ("harp_seal",    "harp_seal_race_against_time_full",     "c2e",    "얼음 위 갓 태어난 새끼 물범의 클로즈업 장면들을 연달아 보여줘"),
-    ("worldcup",     "worldcup_2022_greatest_final_full",    "p2e",    "메시의 골 장면과 그의 세리머니를 보여줘"),
+    ("worldcup",     "worldcup_2022_greatest_final_full",    "p2e",    "메시가 골을 넣는 장면과, 그의 세레머니/축하 장면을 보여줘"),
     ("spiderman",    "spiderman_0824_full",                  "0826_1", "스파이더맨이 거미줄을 쏘고 사용하는 장면을 모아줘"),
     ("interstellar", "interstellar_wave_0827_full",          "0827_4", "두 번째 파도로부터 탈출하는 장면을 보여줘"),
 ]

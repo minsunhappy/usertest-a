@@ -83,7 +83,6 @@ function render() {
         <div class="intent-box">
             <div class="intent-label">INTENT · 의도</div>
             <div class="intent-text">“${set.intent_ko}”</div>
-            <div class="intent-en">(${set.intent_en})</div>
         </div>
     </div>
     ${blocks}
@@ -145,6 +144,15 @@ function render() {
         );
         nextBtn.disabled = !done;
     }
+    // clicking a locked scale points back at the watch-first notice
+    el.querySelectorAll(".scale").forEach(s => s.addEventListener("click", () => {
+        if (!s.classList.contains("disabled")) return;
+        const fk = s.id.split("-")[1];
+        const note = document.getElementById(`note-${fk}`);
+        note.classList.add("attention");
+        note.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => note.classList.remove("attention"), 1600);
+    }));
     el.querySelectorAll("input[type=radio]").forEach(r => r.addEventListener("change", e => {
         const [fk, qkey] = e.target.name.split("-");
         answers[fk][qkey] = parseInt(e.target.value);

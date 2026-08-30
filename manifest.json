@@ -31,7 +31,7 @@
       "source_video": "worldcup_2022_greatest_final_full",
       "bid": "p2e",
       "intent_en": "Messi's goals and his celebrations",
-      "intent_ko": "메시의 골 장면과 그의 세리머니를 보여줘",
+      "intent_ko": "메시가 골을 넣는 장면과, 그의 세레머니/축하 장면을 보여줘",
       "videos": {
         "v1": "funclip",
         "v2": "timechat",

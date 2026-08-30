@@ -81,6 +81,8 @@ video { width: 100%; border-radius: 10px; background: #000; display: block; }
     background: #2f6bff; border-color: #2f6bff; color: #fff;
 }
 .scale.disabled label { opacity: .45; pointer-events: none; }
+.scale.disabled { cursor: not-allowed; }
+.video-note.attention { color: #d33f0f; font-weight: 700; transition: color .2s; }
 .scale-labels { display: flex; justify-content: space-between; font-size: 1.02rem; font-weight: 600; color: #3c4658; }
 .locked-msg { color: #b2582a; font-size: .95rem; margin-top: 10px; }
 .center { text-align: center; }
