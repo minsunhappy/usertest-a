@@ -2,8 +2,8 @@
 // 새 Supabase 프로젝트 생성 후 아래 두 값을 채우세요.
 // (Project Settings → API → Project URL / anon public key)
 // 비어 있으면 응답은 localStorage에만 저장되고 완료 페이지에서 JSON 다운로드로 백업됩니다.
-const SUPABASE_URL = "";
-const SUPABASE_ANON_KEY = "";
+const SUPABASE_URL = "https://ufyuyzprxstjktyhbbul.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmeXV5enByeHN0amt0eWhiYnVsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwMzA0MjUsImV4cCI6MjEwMzYwNjQyNX0.0Vi9T4j5aSI7-KDPsnqLsjPEpewMmdHteCh1kbWjcbY";
 
 // ── 설문 질문 (7점 척도) ──────────────────────────────────────
 const QUESTIONS = [

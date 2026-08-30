@@ -202,13 +202,34 @@ async function uploadSet(set, fileKeys, answers) {
         queuePending(rows);
         return;
     }
+    // anon RLS allows insert and update but not upsert (needs select),
+    // so insert the first time and update on revisits.
     try {
-        const { error } = await supabaseClient.from("responses")
-            .upsert(rows, { onConflict: "participant_id,set_id,file_key" });
-        if (error) throw error;
+        if (!state.uploadedSets) state.uploadedSets = {};
+        if (state.uploadedSets[set.set_id]) {
+            await updateRows(rows);
+        } else {
+            const { error } = await supabaseClient.from("responses").insert(rows);
+            if (error) {
+                if (error.code === "23505") await updateRows(rows); // already inserted earlier
+                else throw error;
+            }
+            state.uploadedSets[set.set_id] = true;
+        }
+        saveState();
     } catch (e) {
         console.warn("upload failed, queued", e);
         queuePending(rows);
+    }
+}
+
+async function updateRows(rows) {
+    for (const r of rows) {
+        const { error } = await supabaseClient.from("responses").update(r)
+            .eq("participant_id", r.participant_id)
+            .eq("set_id", r.set_id)
+            .eq("file_key", r.file_key);
+        if (error) throw error;
     }
 }
 
