@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>사용자 테스트 A — 완료</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+</head>
+<body>
+<div class="wrap">
+    <div class="card center" style="padding: 48px 32px;">
+        <h1>🎉 테스트가 완료되었습니다!</h1>
+        <p style="margin-top:14px;">소중한 시간을 내어 참여해 주셔서 진심으로 감사합니다.</p>
+        <p id="uploadStatus" class="muted" style="margin-top:20px;">응답을 전송하는 중...</p>
+        <div class="btn-row" id="backupRow" hidden>
+            <button class="btn" id="downloadBtn">응답 JSON 다운로드</button>
+            <p class="muted" style="margin-top:10px;">전송에 실패한 응답이 있습니다. 위 버튼으로 파일을 저장해 연구자에게 전달해 주세요.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+const state = JSON.parse(localStorage.getItem("ut_state") || "null");
+const statusEl = document.getElementById("uploadStatus");
+
+async function flush() {
+    if (!state) { statusEl.textContent = ""; return; }
+
+    let pending = state.pendingUploads || [];
+    if (supabaseClient) {
+        const stillPending = [];
+        for (const r of pending) {
+            try {
+                const { error } = await supabaseClient.from("responses").insert(r);
+                if (error) throw error;
+            } catch (e) { stillPending.push(r); }
+        }
+        pending = stillPending;
+        state.pendingUploads = pending;
+        localStorage.setItem("ut_state", JSON.stringify(state));
+        try {
+            await supabaseClient.from("participants")
+                .update({ completed: true, completed_at: new Date().toISOString() })
+                .eq("id", state.participant.id);
+        } catch (e) { console.warn(e); }
+    }
+
+    if (!supabaseClient || pending.length > 0) {
+        statusEl.textContent = supabaseClient
+            ? `⚠️ ${pending.length}개 응답 전송 실패 — 아래에서 백업 파일을 받아주세요.`
+            : "서버 미설정 상태입니다 — 아래에서 응답 파일을 받아 연구자에게 전달해 주세요.";
+        document.getElementById("backupRow").hidden = false;
+    } else {
+        statusEl.textContent = "✓ 모든 응답이 정상적으로 제출되었습니다. 창을 닫으셔도 됩니다.";
+    }
+}
+
+document.getElementById("downloadBtn").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `usertest_A_${state.participant.name}_${state.participant.id.slice(0, 8)}.json`;
+    a.click();
+});
+
+flush();
+</script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+{
+  "sets": [
+    {
+      "set_id": "baseball",
+      "source_video": "baseball_pr_mexico_0827_full",
+      "bid": "0827_1",
+      "intent_en": "all the home runs from both teams",
+      "intent_ko": "양 팀의 홈런 장면을 모두 모아줘",
+      "videos": {
+        "v1": "timechat",
+        "v2": "intentcut_s2",
+        "v3": "funclip",
+        "v4": "random"
+      }
+    },
+    {
+      "set_id": "harp_seal",
+      "source_video": "harp_seal_race_against_time_full",
+      "bid": "c2e",
+      "intent_en": "every close-up of the newborn pup on the ice, one after another",
+      "intent_ko": "얼음 위 갓 태어난 새끼 물범의 클로즈업 장면들을 연달아 보여줘",
+      "videos": {
+        "v1": "funclip",
+        "v2": "timechat",
+        "v3": "random",
+        "v4": "intentcut_s2"
+      }
+    },
+    {
+      "set_id": "worldcup",
+      "source_video": "worldcup_2022_greatest_final_full",
+      "bid": "p2e",
+      "intent_en": "Messi's goals and his celebrations",
+      "intent_ko": "메시의 골 장면과 그의 세리머니를 보여줘",
+      "videos": {
+        "v1": "funclip",
+        "v2": "timechat",
+        "v3": "random",
+        "v4": "intentcut_s2"
+      }
+    },
+    {
+      "set_id": "spiderman",
+      "source_video": "spiderman_0824_full",
+      "bid": "0826_1",
+      "intent_en": "Spider-Man shooting and using his webs",
+      "intent_ko": "스파이더맨이 거미줄을 쏘고 사용하는 장면을 모아줘",
+      "videos": {
+        "v1": "intentcut_s2",
+        "v2": "random",
+        "v3": "timechat",
+        "v4": "funclip"
+      }
+    },
+    {
+      "set_id": "interstellar",
+      "source_video": "interstellar_wave_0827_full",
+      "bid": "0827_4",
+      "intent_en": "the escape from the second wave",
+      "intent_ko": "두 번째 파도로부터 탈출하는 장면을 보여줘",
+      "videos": {
+        "v1": "intentcut_s2",
+        "v2": "random",
+        "v3": "timechat",
+        "v4": "funclip"
+      }
+    }
+  ]
+}

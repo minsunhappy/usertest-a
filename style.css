@@ -1,0 +1,73 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", -apple-system, sans-serif;
+    background: #f4f5f7;
+    color: #1e2430;
+    line-height: 1.65;
+}
+.wrap { max-width: 860px; margin: 0 auto; padding: 40px 24px 80px; }
+h1 { font-size: 1.7rem; margin-bottom: 8px; }
+h2 { font-size: 1.25rem; margin: 28px 0 10px; }
+h3 { font-size: 1.05rem; margin: 18px 0 6px; }
+p  { margin: 8px 0; }
+.card {
+    background: #fff; border: 1px solid #e2e5ea; border-radius: 12px;
+    padding: 28px 32px; margin: 18px 0;
+    box-shadow: 0 1px 3px rgba(20,24,40,.05);
+}
+.notice { background: #fff8e6; border-color: #f0dfa8; }
+.notice ul { margin: 6px 0 0 20px; }
+.example { color: #566072; font-size: .95rem; background:#f6f7f9; border-radius:8px; padding:10px 14px; margin:8px 0; }
+.btn {
+    display: inline-block; background: #2f6bff; color: #fff; border: none;
+    border-radius: 8px; padding: 12px 28px; font-size: 1.05rem; font-weight: 600;
+    cursor: pointer; transition: background .15s;
+}
+.btn:hover { background: #2456d6; }
+.btn:disabled { background: #b9c2d4; cursor: not-allowed; }
+.btn-row { text-align: center; margin-top: 26px; }
+input[type="text"] {
+    width: 100%; max-width: 380px; padding: 10px 14px; font-size: 1rem;
+    border: 1px solid #cfd5df; border-radius: 8px;
+}
+label.field { display: block; font-weight: 600; margin: 14px 0 6px; }
+
+/* progress */
+.progress-bar { position: sticky; top: 0; z-index: 10; background: #fff; border-bottom: 1px solid #e2e5ea; }
+.progress-inner { max-width: 860px; margin: 0 auto; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; font-size: .95rem; color: #566072; }
+.progress-track { height: 6px; background: #e6e9ef; }
+.progress-fill { height: 6px; background: #2f6bff; width: 0; transition: width .3s; }
+
+/* intent */
+.intent-box {
+    background: #eef3ff; border: 1.5px solid #b9ccff; border-radius: 12px;
+    padding: 22px 26px; margin: 16px 0; font-size: 1.15rem;
+}
+.intent-box .intent-label { font-size: .9rem; font-weight: 700; color: #2f6bff; letter-spacing: .05em; margin-bottom: 6px; }
+.intent-box .intent-text { font-weight: 700; }
+.intent-box .intent-en { font-size: .95rem; color: #566072; margin-top: 4px; }
+
+video { width: 100%; border-radius: 10px; background: #000; display: block; }
+.video-note { text-align: center; color: #8a93a5; font-size: .9rem; margin-top: 8px; }
+.video-note.done { color: #1d9d5f; font-weight: 600; }
+
+/* questions */
+.question { border-top: 1px solid #edf0f4; padding: 20px 0 6px; }
+.question:first-of-type { border-top: none; }
+.question .q-title { font-weight: 700; }
+.question .q-note { color: #566072; font-size: .92rem; }
+.scale { display: flex; gap: 6px; margin: 14px 0 4px; }
+.scale label {
+    flex: 1; text-align: center; padding: 10px 0; border: 1.5px solid #cfd5df;
+    border-radius: 8px; cursor: pointer; font-weight: 600; user-select: none;
+    background: #fff; transition: all .1s;
+}
+.scale input { display: none; }
+.scale input:checked + span, .scale label.checked {
+    background: #2f6bff; border-color: #2f6bff; color: #fff;
+}
+.scale.disabled label { opacity: .45; pointer-events: none; }
+.scale-labels { display: flex; justify-content: space-between; font-size: .85rem; color: #566072; }
+.locked-msg { color: #b2582a; font-size: .95rem; margin-top: 10px; }
+.center { text-align: center; }
+.muted { color: #8a93a5; font-size: .9rem; }

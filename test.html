@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>사용자 테스트 A — 진행</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+</head>
+<body>
+<div class="progress-bar">
+    <div class="progress-inner">
+        <span id="progressText"></span>
+        <span class="muted">🔊 소리를 켜고 시청해 주세요</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+</div>
+<div class="wrap" id="content"></div>
+
+<script>
+let state = JSON.parse(localStorage.getItem("ut_state") || "null");
+if (!state || state.finished) { location.href = "index.html"; }
+
+let manifest = null;
+const NUM_Q = QUESTIONS.length;
+
+function saveState() { localStorage.setItem("ut_state", JSON.stringify(state)); }
+
+function currentSet() {
+    const setId = state.setOrder[state.cursor.setIdx];
+    return manifest.sets.find(s => s.set_id === setId);
+}
+
+function totalVideosDone() {
+    return state.cursor.setIdx * 4 + (state.cursor.stage === "video" ? state.cursor.videoIdx : 0);
+}
+
+function renderProgress() {
+    const done = totalVideosDone();
+    document.getElementById("progressText").textContent =
+        `세트 ${state.cursor.setIdx + 1} / ${state.setOrder.length} · 영상 ${state.cursor.stage === "video" ? state.cursor.videoIdx + 1 : "-"} / 4`;
+    document.getElementById("progressFill").style.width = `${(done / (state.setOrder.length * 4)) * 100}%`;
+}
+
+// ── intent screen ────────────────────────────────────────────
+function renderIntent() {
+    const set = currentSet();
+    const el = document.getElementById("content");
+    el.innerHTML = `
+    <div class="card">
+        <h2>세트 ${state.cursor.setIdx + 1} 시작</h2>
+        <p>이번 세트에서는 하나의 원본 영상에 대해 만들어진 <b>4개의 하이라이트</b>를 차례로 시청합니다.<br>
+        아래 <b>의도</b>를 먼저 확인해 주세요. 이어지는 4개 영상 모두 이 의도를 기준으로 평가합니다.</p>
+        <div class="intent-box">
+            <div class="intent-label">INTENT · 의도</div>
+            <div class="intent-text">“${set.intent_ko}”</div>
+            <div class="intent-en">(${set.intent_en})</div>
+        </div>
+        <div class="btn-row"><button class="btn" id="nextBtn">첫 번째 영상 보기</button></div>
+    </div>`;
+    document.getElementById("nextBtn").addEventListener("click", () => {
+        state.cursor.stage = "video";
+        state.cursor.videoIdx = 0;
+        saveState();
+        render();
+    });
+}
+
+// ── video + questions screen ─────────────────────────────────
+function renderVideo() {
+    const set = currentSet();
+    const fileKey = state.conditionOrders[set.set_id][state.cursor.videoIdx]; // e.g. "v3"
+    const el = document.getElementById("content");
+
+    const qHtml = QUESTIONS.map(q => `
+        <div class="question" data-key="${q.key}">
+            <div class="q-title">${q.title}</div>
+            <div>${q.text}</div>
+            ${q.note ? `<div class="q-note">${q.note}</div>` : ""}
+            <div class="scale disabled" id="scale-${q.key}">
+                ${[1,2,3,4,5,6,7].map(v => `
+                    <label><input type="radio" name="${q.key}" value="${v}"><span>${v}</span></label>
+                `).join("")}
+            </div>
+            <div class="scale-labels"><span>${q.low}</span><span>${q.mid}</span><span>${q.high}</span></div>
+        </div>`).join("");
+
+    el.innerHTML = `
+    <div class="card">
+        <div class="intent-box" style="padding:14px 20px; font-size:1rem;">
+            <div class="intent-label">INTENT · 의도</div>
+            <div class="intent-text">“${set.intent_ko}”</div>
+        </div>
+        <h2>하이라이트 ${state.cursor.videoIdx + 1} / 4</h2>
+        <video id="player" src="data/${set.set_id}/${fileKey}.mp4" controls controlslist="nodownload noplaybackrate" disablepictureinpicture preload="auto"></video>
+        <div class="video-note" id="videoNote">▶ 영상을 처음부터 끝까지 시청하면 아래 질문이 활성화됩니다. (앞으로 건너뛰기 불가)</div>
+    </div>
+    <div class="card">
+        ${qHtml}
+        <div class="locked-msg" id="lockMsg">영상을 끝까지 시청한 뒤 답변할 수 있습니다.</div>
+        <div class="btn-row"><button class="btn" id="nextBtn" disabled>다음</button></div>
+    </div>`;
+
+    const video = document.getElementById("player");
+    let maxPlayed = 0;
+    let watchStart = null;
+    let watchedSeconds = 0;
+    let ended = false;
+
+    video.addEventListener("play", () => { watchStart = Date.now(); });
+    video.addEventListener("pause", () => {
+        if (watchStart) { watchedSeconds += (Date.now() - watchStart) / 1000; watchStart = null; }
+    });
+    video.addEventListener("timeupdate", () => {
+        if (!ended && video.currentTime > maxPlayed + 1.0) {
+            video.currentTime = maxPlayed; // block forward seeking
+        } else if (video.currentTime > maxPlayed) {
+            maxPlayed = video.currentTime;
+        }
+    });
+    video.addEventListener("ratechange", () => { if (video.playbackRate !== 1) video.playbackRate = 1; });
+    video.addEventListener("ended", () => {
+        ended = true;
+        if (watchStart) { watchedSeconds += (Date.now() - watchStart) / 1000; watchStart = null; }
+        document.getElementById("videoNote").textContent = "✓ 시청 완료! 아래 질문에 답해 주세요.";
+        document.getElementById("videoNote").classList.add("done");
+        document.getElementById("lockMsg").hidden = true;
+        QUESTIONS.forEach(q => document.getElementById(`scale-${q.key}`).classList.remove("disabled"));
+    });
+
+    const nextBtn = document.getElementById("nextBtn");
+    function checkComplete() {
+        const allAnswered = QUESTIONS.every(q => document.querySelector(`input[name="${q.key}"]:checked`));
+        nextBtn.disabled = !(ended && allAnswered);
+    }
+    el.querySelectorAll("input[type=radio]").forEach(r => r.addEventListener("change", checkComplete));
+
+    nextBtn.addEventListener("click", async () => {
+        nextBtn.disabled = true;
+        const answers = {};
+        QUESTIONS.forEach(q => { answers[q.key] = parseInt(document.querySelector(`input[name="${q.key}"]:checked`).value); });
+
+        const response = {
+            participant_id: state.participant.id,
+            participant_name: state.participant.name,
+            set_id: set.set_id,
+            condition: set.videos[fileKey],
+            file_key: fileKey,
+            set_index: state.cursor.setIdx,
+            video_index: state.cursor.videoIdx,
+            watch_seconds: Math.round(watchedSeconds * 10) / 10,
+            ...answers,
+        };
+        state.responses.push(response);
+        await uploadResponse(response);
+
+        // advance cursor
+        if (state.cursor.videoIdx < 3) {
+            state.cursor.videoIdx += 1;
+        } else if (state.cursor.setIdx < state.setOrder.length - 1) {
+            state.cursor.setIdx += 1;
+            state.cursor.stage = "intent";
+            state.cursor.videoIdx = 0;
+        } else {
+            state.finished = true;
+            saveState();
+            location.href = "final.html";
+            return;
+        }
+        saveState();
+        window.scrollTo(0, 0);
+        render();
+    });
+}
+
+async function uploadResponse(response) {
+    if (!supabaseClient) {
+        state.pendingUploads.push(response);
+        return;
+    }
+    try {
+        const { error } = await supabaseClient.from("responses").insert(response);
+        if (error) throw error;
+    } catch (e) {
+        console.warn("upload failed, queued", e);
+        state.pendingUploads.push(response);
+    }
+}
+
+function render() {
+    renderProgress();
+    if (state.cursor.stage === "intent") renderIntent();
+    else renderVideo();
+}
+
+fetch("manifest.json").then(r => r.json()).then(m => { manifest = m; render(); });
+</script>
+</body>
+</html>
