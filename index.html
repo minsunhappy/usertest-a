@@ -78,7 +78,7 @@ function shuffled(arr) {
 const existing = localStorage.getItem("ut_state");
 if (existing) {
     const st = JSON.parse(existing);
-    if (!st.finished) {
+    if (!st.finished && st.version === 2) {
         document.getElementById("resumeNote").hidden = false;
         document.getElementById("pname").value = st.participant.name || "";
     }
@@ -92,7 +92,7 @@ document.getElementById("startBtn").addEventListener("click", async () => {
     const prev = localStorage.getItem("ut_state");
     if (prev) {
         const st = JSON.parse(prev);
-        if (!st.finished && st.participant.name === name) {
+        if (!st.finished && st.version === 2 && st.participant.name === name) {
             location.href = "test.html";
             return;
         }
@@ -107,11 +107,12 @@ document.getElementById("startBtn").addEventListener("click", async () => {
     }
 
     const state = {
+        version: 2,
         participant: { id: participantId, name },
         setOrder,
         conditionOrders,
-        cursor: { setIdx: 0, stage: "intent", videoIdx: 0 },
-        responses: [],
+        cursor: { setIdx: 0 },
+        answers: {},
         pendingUploads: [],
         startedAt: new Date().toISOString(),
         finished: false,

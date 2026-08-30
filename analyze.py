@@ -56,7 +56,10 @@ def load_local(paths) -> pd.DataFrame:
     rows = []
     for p in paths:
         data = json.loads(Path(p).read_text())
-        rows.extend(data["responses"] if "responses" in data else data)
+        if isinstance(data, dict):
+            rows.extend(data.get("pendingUploads") or data.get("responses") or [])
+        else:
+            rows.extend(data)
     return pd.DataFrame(rows)
 
 
@@ -67,9 +70,9 @@ def main():
     OUT.mkdir(exist_ok=True)
 
     # keep only participants with complete data (5 sets x 4 conditions = 20 rows),
-    # dropping duplicate submissions (keep first per participant/set/condition)
+    # dropping duplicate submissions (keep last: edited answers overwrite earlier ones)
     df = df.sort_values("id" if "id" in df.columns else "set_index")
-    df = df.drop_duplicates(subset=["participant_id", "set_id", "condition"], keep="first")
+    df = df.drop_duplicates(subset=["participant_id", "set_id", "condition"], keep="last")
     counts = df.groupby("participant_id").size()
     complete_ids = counts[counts == 20].index
     incomplete = counts[counts != 20]

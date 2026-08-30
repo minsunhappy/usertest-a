@@ -25,6 +25,8 @@ p  { margin: 8px 0; }
 }
 .btn:hover { background: #2456d6; }
 .btn:disabled { background: #b9c2d4; cursor: not-allowed; }
+.btn-secondary { background: #6b7688; }
+.btn-secondary:hover { background: #566072; }
 .btn-row { text-align: center; margin-top: 26px; }
 input[type="text"] {
     width: 100%; max-width: 380px; padding: 10px 14px; font-size: 1rem;

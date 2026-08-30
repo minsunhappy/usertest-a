@@ -24,7 +24,8 @@ create table public.responses (
     q2 int check (q2 between 1 and 7),
     q3 int check (q3 between 1 and 7),
     watch_seconds real,
-    created_at timestamptz not null default now()
+    created_at timestamptz not null default now(),
+    unique (participant_id, set_id, file_key)   -- upsert target: going back and editing answers overwrites
 );
 
 -- RLS: anon key may only insert (and mark own participant complete). No reads.
@@ -37,3 +38,5 @@ create policy "anon complete participants" on public.participants
     for update to anon using (true) with check (true);
 create policy "anon insert responses" on public.responses
     for insert to anon with check (true);
+create policy "anon upsert responses" on public.responses
+    for update to anon using (true) with check (true);

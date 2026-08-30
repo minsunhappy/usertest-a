@@ -33,7 +33,8 @@ async function flush() {
         const stillPending = [];
         for (const r of pending) {
             try {
-                const { error } = await supabaseClient.from("responses").insert(r);
+                const { error } = await supabaseClient.from("responses")
+                    .upsert(r, { onConflict: "participant_id,set_id,file_key" });
                 if (error) throw error;
             } catch (e) { stillPending.push(r); }
         }

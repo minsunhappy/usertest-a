@@ -20,10 +20,9 @@
 
 <script>
 let state = JSON.parse(localStorage.getItem("ut_state") || "null");
-if (!state || state.finished) { location.href = "index.html"; }
+if (!state || state.finished || state.version !== 2) { location.href = "index.html"; }
 
 let manifest = null;
-const NUM_Q = QUESTIONS.length;
 
 function saveState() { localStorage.setItem("ut_state", JSON.stringify(state)); }
 
@@ -32,166 +31,193 @@ function currentSet() {
     return manifest.sets.find(s => s.set_id === setId);
 }
 
-function totalVideosDone() {
-    return state.cursor.setIdx * 4 + (state.cursor.stage === "video" ? state.cursor.videoIdx : 0);
+function setAnswers(setId) {
+    if (!state.answers[setId]) state.answers[setId] = {};
+    return state.answers[setId];
 }
 
 function renderProgress() {
-    const done = totalVideosDone();
     document.getElementById("progressText").textContent =
-        `세트 ${state.cursor.setIdx + 1} / ${state.setOrder.length} · 영상 ${state.cursor.stage === "video" ? state.cursor.videoIdx + 1 : "-"} / 4`;
-    document.getElementById("progressFill").style.width = `${(done / (state.setOrder.length * 4)) * 100}%`;
+        `세트 ${state.cursor.setIdx + 1} / ${state.setOrder.length}`;
+    document.getElementById("progressFill").style.width =
+        `${(state.cursor.setIdx / state.setOrder.length) * 100}%`;
 }
 
-// ── intent screen ────────────────────────────────────────────
-function renderIntent() {
+function render() {
+    renderProgress();
     const set = currentSet();
+    const answers = setAnswers(set.set_id);
+    const fileKeys = state.conditionOrders[set.set_id];
     const el = document.getElementById("content");
+
+    const blocks = fileKeys.map((fk, i) => {
+        const a = answers[fk] || {};
+        const qHtml = QUESTIONS.map(q => `
+            <div class="question">
+                <div class="q-title">${q.title}</div>
+                <div>${q.text}</div>
+                ${q.note ? `<div class="q-note">${q.note}</div>` : ""}
+                <div class="scale ${a.watched ? "" : "disabled"}" id="scale-${fk}-${q.key}">
+                    ${[1,2,3,4,5,6,7].map(v => `
+                        <label><input type="radio" name="${fk}-${q.key}" value="${v}" ${a[q.key] === v ? "checked" : ""}><span>${v}</span></label>
+                    `).join("")}
+                </div>
+                <div class="scale-labels"><span>${q.low}</span><span>${q.mid}</span><span>${q.high}</span></div>
+            </div>`).join("");
+        return `
+        <div class="card" data-fk="${fk}">
+            <h2>하이라이트 ${i + 1} / 4</h2>
+            <video id="player-${fk}" src="data/${set.set_id}/${fk}.mp4" controls controlslist="nodownload noplaybackrate" disablepictureinpicture preload="metadata"></video>
+            <div class="video-note ${a.watched ? "done" : ""}" id="note-${fk}">
+                ${a.watched ? "✓ 시청 완료! 아래 질문에 답해 주세요." : "▶ 영상을 처음부터 끝까지 시청하면 아래 질문이 활성화됩니다. (앞으로 건너뛰기 불가)"}
+            </div>
+            ${qHtml}
+        </div>`;
+    }).join("");
+
     el.innerHTML = `
     <div class="card">
-        <h2>세트 ${state.cursor.setIdx + 1} 시작</h2>
-        <p>이번 세트에서는 하나의 원본 영상에 대해 만들어진 <b>4개의 하이라이트</b>를 차례로 시청합니다.<br>
-        아래 <b>의도</b>를 먼저 확인해 주세요. 이어지는 4개 영상 모두 이 의도를 기준으로 평가합니다.</p>
+        <h2>세트 ${state.cursor.setIdx + 1}</h2>
+        <p>아래 <b>의도</b>를 먼저 확인해 주세요. 이 페이지의 하이라이트 4개를 모두 이 의도를 기준으로 평가합니다.</p>
         <div class="intent-box">
             <div class="intent-label">INTENT · 의도</div>
             <div class="intent-text">“${set.intent_ko}”</div>
             <div class="intent-en">(${set.intent_en})</div>
         </div>
-        <div class="btn-row"><button class="btn" id="nextBtn">첫 번째 영상 보기</button></div>
-    </div>`;
-    document.getElementById("nextBtn").addEventListener("click", () => {
-        state.cursor.stage = "video";
-        state.cursor.videoIdx = 0;
-        saveState();
-        render();
-    });
-}
-
-// ── video + questions screen ─────────────────────────────────
-function renderVideo() {
-    const set = currentSet();
-    const fileKey = state.conditionOrders[set.set_id][state.cursor.videoIdx]; // e.g. "v3"
-    const el = document.getElementById("content");
-
-    const qHtml = QUESTIONS.map(q => `
-        <div class="question" data-key="${q.key}">
-            <div class="q-title">${q.title}</div>
-            <div>${q.text}</div>
-            ${q.note ? `<div class="q-note">${q.note}</div>` : ""}
-            <div class="scale disabled" id="scale-${q.key}">
-                ${[1,2,3,4,5,6,7].map(v => `
-                    <label><input type="radio" name="${q.key}" value="${v}"><span>${v}</span></label>
-                `).join("")}
-            </div>
-            <div class="scale-labels"><span>${q.low}</span><span>${q.mid}</span><span>${q.high}</span></div>
-        </div>`).join("");
-
-    el.innerHTML = `
-    <div class="card">
-        <div class="intent-box" style="padding:14px 20px; font-size:1rem;">
-            <div class="intent-label">INTENT · 의도</div>
-            <div class="intent-text">“${set.intent_ko}”</div>
-        </div>
-        <h2>하이라이트 ${state.cursor.videoIdx + 1} / 4</h2>
-        <video id="player" src="data/${set.set_id}/${fileKey}.mp4" controls controlslist="nodownload noplaybackrate" disablepictureinpicture preload="auto"></video>
-        <div class="video-note" id="videoNote">▶ 영상을 처음부터 끝까지 시청하면 아래 질문이 활성화됩니다. (앞으로 건너뛰기 불가)</div>
     </div>
-    <div class="card">
-        ${qHtml}
-        <div class="locked-msg" id="lockMsg">영상을 끝까지 시청한 뒤 답변할 수 있습니다.</div>
-        <div class="btn-row"><button class="btn" id="nextBtn" disabled>다음</button></div>
-    </div>`;
+    ${blocks}
+    <div class="btn-row">
+        ${state.cursor.setIdx > 0 ? `<button class="btn btn-secondary" id="prevBtn">← 이전 세트</button> ` : ""}
+        <button class="btn" id="nextBtn" disabled>${state.cursor.setIdx < state.setOrder.length - 1 ? "다음 세트 →" : "제출하고 완료하기"}</button>
+    </div>
+    <p class="center muted">4개 영상을 모두 시청하고 질문에 답하면 다음으로 넘어갈 수 있습니다.</p>`;
 
-    const video = document.getElementById("player");
-    let maxPlayed = 0;
-    let watchStart = null;
-    let watchedSeconds = 0;
-    let ended = false;
+    // per-video wiring
+    for (const fk of fileKeys) {
+        const video = document.getElementById(`player-${fk}`);
+        const a = answers[fk] || (answers[fk] = {});
+        let maxPlayed = 0;
+        let watchStart = null;
 
-    video.addEventListener("play", () => { watchStart = Date.now(); });
-    video.addEventListener("pause", () => {
-        if (watchStart) { watchedSeconds += (Date.now() - watchStart) / 1000; watchStart = null; }
-    });
-    video.addEventListener("timeupdate", () => {
-        if (!ended && video.currentTime > maxPlayed + 1.0) {
-            video.currentTime = maxPlayed; // block forward seeking
-        } else if (video.currentTime > maxPlayed) {
-            maxPlayed = video.currentTime;
-        }
-    });
-    video.addEventListener("ratechange", () => { if (video.playbackRate !== 1) video.playbackRate = 1; });
-    video.addEventListener("ended", () => {
-        ended = true;
-        if (watchStart) { watchedSeconds += (Date.now() - watchStart) / 1000; watchStart = null; }
-        document.getElementById("videoNote").textContent = "✓ 시청 완료! 아래 질문에 답해 주세요.";
-        document.getElementById("videoNote").classList.add("done");
-        document.getElementById("lockMsg").hidden = true;
-        QUESTIONS.forEach(q => document.getElementById(`scale-${q.key}`).classList.remove("disabled"));
-    });
+        video.addEventListener("play", () => {
+            watchStart = Date.now();
+            // pause the other videos so audio doesn't overlap
+            for (const other of fileKeys) {
+                if (other !== fk) document.getElementById(`player-${other}`).pause();
+            }
+        });
+        video.addEventListener("pause", () => {
+            if (watchStart) {
+                a.watch_seconds = (a.watch_seconds || 0) + (Date.now() - watchStart) / 1000;
+                watchStart = null;
+                saveState();
+            }
+        });
+        video.addEventListener("timeupdate", () => {
+            if (!a.watched && video.currentTime > maxPlayed + 1.0) {
+                video.currentTime = maxPlayed; // block forward seeking until first full watch
+            } else if (video.currentTime > maxPlayed) {
+                maxPlayed = video.currentTime;
+            }
+        });
+        video.addEventListener("ratechange", () => { if (video.playbackRate !== 1) video.playbackRate = 1; });
+        video.addEventListener("ended", () => {
+            if (watchStart) {
+                a.watch_seconds = (a.watch_seconds || 0) + (Date.now() - watchStart) / 1000;
+                watchStart = null;
+            }
+            a.watched = true;
+            saveState();
+            const note = document.getElementById(`note-${fk}`);
+            note.textContent = "✓ 시청 완료! 아래 질문에 답해 주세요.";
+            note.classList.add("done");
+            QUESTIONS.forEach(q => document.getElementById(`scale-${fk}-${q.key}`).classList.remove("disabled"));
+            checkComplete();
+        });
+    }
 
     const nextBtn = document.getElementById("nextBtn");
     function checkComplete() {
-        const allAnswered = QUESTIONS.every(q => document.querySelector(`input[name="${q.key}"]:checked`));
-        nextBtn.disabled = !(ended && allAnswered);
+        const done = fileKeys.every(fk =>
+            answers[fk]?.watched &&
+            QUESTIONS.every(q => document.querySelector(`input[name="${fk}-${q.key}"]:checked`))
+        );
+        nextBtn.disabled = !done;
     }
-    el.querySelectorAll("input[type=radio]").forEach(r => r.addEventListener("change", checkComplete));
+    el.querySelectorAll("input[type=radio]").forEach(r => r.addEventListener("change", e => {
+        const [fk, qkey] = e.target.name.split("-");
+        answers[fk][qkey] = parseInt(e.target.value);
+        saveState();
+        checkComplete();
+    }));
+    checkComplete();
 
-    nextBtn.addEventListener("click", async () => {
-        nextBtn.disabled = true;
-        const answers = {};
-        QUESTIONS.forEach(q => { answers[q.key] = parseInt(document.querySelector(`input[name="${q.key}"]:checked`).value); });
-
-        const response = {
-            participant_id: state.participant.id,
-            participant_name: state.participant.name,
-            set_id: set.set_id,
-            condition: set.videos[fileKey],
-            file_key: fileKey,
-            set_index: state.cursor.setIdx,
-            video_index: state.cursor.videoIdx,
-            watch_seconds: Math.round(watchedSeconds * 10) / 10,
-            ...answers,
-        };
-        state.responses.push(response);
-        await uploadResponse(response);
-
-        // advance cursor
-        if (state.cursor.videoIdx < 3) {
-            state.cursor.videoIdx += 1;
-        } else if (state.cursor.setIdx < state.setOrder.length - 1) {
-            state.cursor.setIdx += 1;
-            state.cursor.stage = "intent";
-            state.cursor.videoIdx = 0;
-        } else {
-            state.finished = true;
-            saveState();
-            location.href = "final.html";
-            return;
-        }
+    const prevBtn = document.getElementById("prevBtn");
+    if (prevBtn) prevBtn.addEventListener("click", () => {
+        pauseAll(fileKeys);
+        state.cursor.setIdx -= 1;
         saveState();
         window.scrollTo(0, 0);
         render();
     });
+
+    nextBtn.addEventListener("click", async () => {
+        nextBtn.disabled = true;
+        pauseAll(fileKeys);
+        await uploadSet(set, fileKeys, answers);
+        if (state.cursor.setIdx < state.setOrder.length - 1) {
+            state.cursor.setIdx += 1;
+            saveState();
+            window.scrollTo(0, 0);
+            render();
+        } else {
+            state.finished = true;
+            saveState();
+            location.href = "final.html";
+        }
+    });
 }
 
-async function uploadResponse(response) {
+function pauseAll(fileKeys) {
+    for (const fk of fileKeys) document.getElementById(`player-${fk}`)?.pause();
+}
+
+function buildRows(set, fileKeys, answers) {
+    return fileKeys.map((fk, i) => ({
+        participant_id: state.participant.id,
+        participant_name: state.participant.name,
+        set_id: set.set_id,
+        condition: set.videos[fk],
+        file_key: fk,
+        set_index: state.cursor.setIdx,
+        video_index: i,
+        watch_seconds: Math.round((answers[fk].watch_seconds || 0) * 10) / 10,
+        q1: answers[fk].q1, q2: answers[fk].q2, q3: answers[fk].q3,
+    }));
+}
+
+async function uploadSet(set, fileKeys, answers) {
+    const rows = buildRows(set, fileKeys, answers);
     if (!supabaseClient) {
-        state.pendingUploads.push(response);
+        queuePending(rows);
         return;
     }
     try {
-        const { error } = await supabaseClient.from("responses").insert(response);
+        const { error } = await supabaseClient.from("responses")
+            .upsert(rows, { onConflict: "participant_id,set_id,file_key" });
         if (error) throw error;
     } catch (e) {
         console.warn("upload failed, queued", e);
-        state.pendingUploads.push(response);
+        queuePending(rows);
     }
 }
 
-function render() {
-    renderProgress();
-    if (state.cursor.stage === "intent") renderIntent();
-    else renderVideo();
+function queuePending(rows) {
+    // replace any older queued rows for the same videos (answers may have been edited)
+    state.pendingUploads = (state.pendingUploads || []).filter(p =>
+        !rows.some(r => r.set_id === p.set_id && r.file_key === p.file_key));
+    state.pendingUploads.push(...rows);
+    saveState();
 }
 
 fetch("manifest.json").then(r => r.json()).then(m => { manifest = m; render(); });
