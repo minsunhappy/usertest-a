@@ -19,14 +19,14 @@ p  { margin: 8px 0; }
 }
 .notice { background: #fff8e6; border-color: #f0dfa8; }
 .notice ul { margin: 6px 0 0 20px; }
-.example { color: #566072; font-size: .95rem; background:#f6f7f9; border-radius:8px; padding:10px 14px; margin:8px 0; }
+.example { color: #1e2430; font-size: 1rem; background:#f0f2f6; border-radius:8px; padding:10px 14px; margin:8px 0; }
 .btn {
     display: inline-block; background: #2f6bff; color: #fff; border: none;
     border-radius: 8px; padding: 12px 28px; font-size: 1.05rem; font-weight: 600;
     cursor: pointer; transition: background .15s;
 }
 .btn:hover { background: #2456d6; }
-.btn:disabled { background: #b9c2d4; cursor: not-allowed; }
+.btn:disabled { background: #7a8598; cursor: not-allowed; }
 .btn-secondary { background: #6b7688; }
 .btn-secondary:hover { background: #566072; }
 .btn-row { text-align: center; margin-top: 26px; }
@@ -45,19 +45,19 @@ label.field { display: block; font-weight: 600; margin: 14px 0 6px; }
 
 /* progress */
 .progress-bar { position: sticky; top: 0; z-index: 10; background: #fff; border-bottom: 1px solid #e2e5ea; }
-.progress-inner { max-width: 860px; margin: 0 auto; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; font-size: .95rem; color: #566072; }
+.progress-inner { max-width: 860px; margin: 0 auto; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; font-size: .98rem; font-weight: 600; color: #1e2430; }
 body.test-page .progress-inner { max-width: 1360px; }
 .progress-track { height: 6px; background: #e6e9ef; }
 .progress-fill { height: 6px; background: #2f6bff; width: 0; transition: width .3s; }
 
 /* intent */
 .intent-box {
-    background: #eef3ff; border: 1.5px solid #b9ccff; border-radius: 12px;
-    padding: 22px 26px; margin: 16px 0; font-size: 1.15rem;
+    background: #e7eeff; border: 3px solid #2f6bff; border-radius: 12px;
+    padding: 16px 22px; margin: 12px 0; font-size: 1.15rem; color: #10214a;
 }
-.intent-box .intent-label { font-size: .9rem; font-weight: 700; color: #2f6bff; letter-spacing: .05em; margin-bottom: 6px; }
+.intent-box .intent-label { font-weight: 800; color: #1b4ed8; margin-right: 6px; }
 .intent-box .intent-text { font-weight: 700; }
-.intent-box .intent-en { font-size: .95rem; color: #566072; margin-top: 4px; }
+.intent-box .intent-en { font-size: .95rem; color: #1e2430; margin-top: 4px; }
 
 video { width: 100%; border-radius: 10px; background: #000; display: block; }
 /* video + its 3 questions side by side so one highlight fits on screen */
@@ -74,11 +74,12 @@ video { width: 100%; border-radius: 10px; background: #000; display: block; }
     .video-grid video { max-height: none; }
 }
 .intent-inline {
-    background: #eef3ff; border: 1.5px solid #b9ccff; border-radius: 10px;
-    padding: 10px 16px; margin: 8px 0 0; font-size: 1.02rem; font-weight: 700;
+    background: #e7eeff; border: 3px solid #2f6bff; border-radius: 10px;
+    padding: 12px 16px; margin: 0 0 14px; font-size: 1.08rem; font-weight: 700;
+    color: #10214a;
 }
-.intent-inline .intent-label { font-size: .85rem; font-weight: 700; color: #2f6bff; letter-spacing: .05em; margin-right: 8px; }
-.video-note { text-align: center; color: #8a93a5; font-size: .9rem; margin-top: 8px; }
+.intent-inline .intent-label { font-weight: 800; color: #1b4ed8; margin-right: 6px; }
+.video-note { text-align: center; color: #1e2430; font-size: .95rem; margin-top: 8px; }
 .video-note.done { color: #1d9d5f; font-weight: 600; }
 
 /* questions */
@@ -86,7 +87,7 @@ video { width: 100%; border-radius: 10px; background: #000; display: block; }
 .question:first-of-type { border-top: none; padding-top: 0; }
 .question .q-head { line-height: 1.45; }
 .question .q-title { font-weight: 700; }
-.question .q-note { color: #566072; font-size: .88rem; line-height: 1.4; }
+.question .q-note { color: #1e2430; font-size: .92rem; line-height: 1.4; }
 .scale { display: flex; gap: 5px; margin: 8px 0 3px; }
 .scale label {
     flex: 1; text-align: center; padding: 5px 0; border: 1.5px solid #cfd5df;
@@ -94,14 +95,19 @@ video { width: 100%; border-radius: 10px; background: #000; display: block; }
     background: #fff; transition: all .1s;
 }
 .scale input { display: none; }
-.scale input:checked + span, .scale label.checked {
-    background: #2f6bff; border-color: #2f6bff; color: #fff;
+.scale label:hover { border-color: #2f6bff; background: #f2f6ff; }
+.scale label:active { transform: translateY(1px); }
+/* the whole button fills in, not just the number */
+.scale label:has(input:checked) {
+    background: #2f6bff; border-color: #1b4ed8; color: #fff;
+    box-shadow: inset 0 2px 0 rgba(0,0,0,.12);
+    transform: translateY(1px);
 }
 .scale.disabled label { opacity: .45; pointer-events: none; }
 .scale.disabled { cursor: not-allowed; }
 .video-note.attention { color: #d33f0f; font-weight: 700; transition: color .2s; }
-.scale-labels { display: flex; justify-content: space-between; gap: 10px; font-size: .95rem; font-weight: 600; color: #3c4658; }
+.scale-labels { display: flex; justify-content: space-between; gap: 10px; font-size: .95rem; font-weight: 600; color: #1e2430; }
 .scale-labels span:nth-child(2) { white-space: nowrap; }
 .locked-msg { color: #b2582a; font-size: .95rem; margin-top: 10px; }
 .center { text-align: center; }
-.muted { color: #8a93a5; font-size: .9rem; }
+.muted { color: #1e2430; font-size: .98rem; }
