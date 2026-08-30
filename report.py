@@ -558,7 +558,96 @@ tabs.forEach(tab => tab.addEventListener("click", () => {{
 """
 
 
+def summary(done, partial, registered_no_data):
+    """What you'd otherwise have to open the page to read."""
+    n = len(done)
+    out = []
+    stamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+    out.append(f"\n의도 기반 하이라이트 평가 · {stamp}")
+    out.append("=" * 62)
+
+    genders = defaultdict(int)
+    ages = []
+    for p, _ in done:
+        genders[p.get("gender") or "미기재"] += 1
+        if p.get("age"):
+            ages.append(p["age"])
+    who = ", ".join(f"{p['name']}({p.get('age')}{p.get('gender')})" for p, _ in done)
+    gbits = " · ".join(f"{g} {c}명" for g, c in sorted(genders.items(), key=lambda kv: -kv[1]))
+    age_bit = f"평균 {mean(ages):.0f}세, 범위 {min(ages)}–{max(ages)}" if ages else "-"
+    out.append(f"완료 {n}명 ({gbits}, {age_bit})")
+    out.append(f"  {who}" if who else "  (없음)")
+    if partial:
+        out.append("진행 중 " + ", ".join(f"{p['name']} {len(r)}/20" for p, r in partial))
+    if registered_no_data:
+        out.append(f"등록만 하고 응답 없음: {registered_no_data}명")
+
+    if not done:
+        out.append("\n아직 완료한 참가자가 없어 집계할 결과가 없습니다.")
+        return "\n".join(out)
+
+    units = units_pooled(done)
+    out.append("\n조건별 평균 (7점 척도, 높을수록 좋음)")
+    out.append(f"  {'조건':<12} {'Q1 관련도':>9} {'Q2 자연도':>9} {'Q3 만족도':>9}")
+    for c in CONDITIONS:
+        vals = [f"{mean([u[c][q] for u in units]):>9.2f}" for q, _, _ in QS]
+        tail = "   ← 제안 방법" if c == "intentcut_s2" else ""
+        out.append(f"  {COND_LABEL[c]:<12}" + "".join(vals) + tail)
+
+    all_rows = [r for _, rows in done for r in rows]
+
+    def set_mean(s, c, q):
+        return mean([r[q] for r in all_rows if r["set_id"] == s and r["condition"] == c])
+
+    out.append("\n영상별 Q3 만족도 — IntentCut vs 최고 베이스라인")
+    for s, label in SET_LABEL.items():
+        ic = set_mean(s, "intentcut_s2", "q3")
+        if ic is None:
+            continue
+        best_c = max((c for c in CONDITIONS if c != "intentcut_s2"),
+                     key=lambda c: set_mean(s, c, "q3") or 0)
+        bv = set_mean(s, best_c, "q3")
+        gap = ic - bv
+        flag = "  ← 열세" if gap < 0 else ("  = 동률" if gap == 0 else "")
+        out.append(f"  {label:<16} {ic:.1f} vs {bv:.1f} ({COND_LABEL[best_c]})  {gap:+.1f}{flag}")
+
+    out.append(f"\nIntentCut vs 베이스라인 (참가자 단위 대응 검정, n={n})")
+    enough = n >= 5
+    if not enough:
+        out.append(f"  * 참가자 {n}명이라 유의성 판정은 보류합니다 (5명부터 표시).")
+    for q, qt, _ in QS:
+        a = [u["intentcut_s2"][q] for u in units]
+        for base in ["funclip", "timechat", "random"]:
+            b = [u[base][q] for u in units]
+            wp, tp = wilcoxon_and_t(a, b)
+            d = cohens_dz(a, b)
+            verdict = "표본 부족" if (wp is None or not enough) else (
+                "유의" if (tp is not None and tp < 0.05) else "유의차 없음")
+            out.append(
+                f"  {qt.split(' · ')[0]} vs {COND_LABEL[base]:<10} "
+                f"{mean(a) - mean(b):+.2f}  "
+                f"d={f'{d:.2f}' if d is not None else '  - '}  "
+                f"p={f'{tp:.3f}' if tp is not None else '  -  '}  [{verdict}]")
+    return "\n".join(out)
+
+
 if __name__ == "__main__":
+    args = set(sys.argv[1:])
     done, partial = collect()
     OUT.write_text(build(done, partial))
-    print(f"완료 참가자 {len(done)}명 / 진행 중 {len(partial)}명 → {OUT}")
+
+    # participants who registered but never submitted a set
+    load_env()
+    people = fetch("participants", {"select": "id,name"})
+    known = {p["id"] for p, _ in done} | {p["id"] for p, _ in partial}
+    ghosts = sum(1 for p in people
+                 if not EXCLUDE_NAME_RE.match(p.get("name") or "") and p["id"] not in known)
+
+    if "--quiet" not in args:
+        print(summary(done, partial, ghosts))
+    print(f"\nHTML: {OUT}")
+
+    if "--no-open" not in args:
+        import subprocess
+        subprocess.run(["open", str(OUT)], check=False)
+        print("브라우저로 열었습니다. Claude 에게 공유하려면 report.html 을 다시 게시하세요.")

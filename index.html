@@ -101,13 +101,18 @@ if (existing) {
     }
 }
 
+let starting = false;   // 빠르게 여러 번 누르면 참가자가 중복 등록된다
 document.getElementById("startBtn").addEventListener("click", async () => {
+    if (starting) return;
     const name = document.getElementById("pname").value.trim();
     if (!name) { alert("이름(또는 닉네임)을 입력해 주세요."); return; }
     const age = parseInt(document.getElementById("page").value, 10);
     if (!age || age < 1 || age > 120) { alert("나이를 숫자로 입력해 주세요."); return; }
     const gender = document.querySelector('input[name="pgender"]:checked')?.value;
     if (!gender) { alert("성별을 선택해 주세요."); return; }
+
+    starting = true;
+    document.getElementById("startBtn").disabled = true;
 
     // resume an unfinished session, applying any edits to the participant info
     const prev = localStorage.getItem("ut_state");
