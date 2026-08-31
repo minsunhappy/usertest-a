@@ -159,10 +159,31 @@ def mask(name):
     return name[0] + "○" * max(1, len(name) - 1) if name else "익명"
 
 
-def bar_chart(title, subtitle, values, compact=False):
-    """One bar per condition, with a direct value label on each (relief rule)."""
+def stars(p):
+    """*** p<.001, ** p<.01, * p<.05, † p<.10 — the usual convention."""
+    if p is None:
+        return "—"
+    if p < 0.001:
+        return "***"
+    if p < 0.01:
+        return "**"
+    if p < 0.05:
+        return "*"
+    if p < 0.10:
+        return "†"
+    return "n.s."
+
+
+def bar_chart(title, subtitle, values, compact=False, brackets=()):
+    """One bar per condition, with a direct value label on each (relief rule).
+
+    brackets: list of (other_index, label, provisional) comparing bar 0 to that bar.
+    """
     W, H = (300, 200) if compact else (360, 240)
     pad_l, pad_r, pad_t, pad_b = 34, 10, 26, 46
+    if brackets:
+        pad_t = 26 + 22 * len(brackets)
+        H += 22 * len(brackets)
     plot_w, plot_h = W - pad_l - pad_r, H - pad_t - pad_b
     lo, hi = 1, 7
     slot = plot_w / len(CONDITIONS)
@@ -198,6 +219,19 @@ def bar_chart(title, subtitle, values, compact=False):
         parts.append(
             f'<text class="cond" x="{x + bar_w / 2:.1f}" y="{H - pad_b + 18}" '
             f'text-anchor="middle">{esc(COND_LABEL[c])}</text>')
+
+    def bar_center(i):
+        return pad_l + slot * i + slot / 2
+
+    for level, (other, label, provisional) in enumerate(brackets):
+        by = pad_t - 14 - level * 22
+        x0, x1 = bar_center(0), bar_center(other)
+        cls = "brk provisional" if provisional else "brk"
+        parts.append(
+            f'<g class="{cls}">'
+            f'<path d="M{x0:.1f} {by + 6:.1f} V{by:.1f} H{x1:.1f} V{by + 6:.1f}"/>'
+            f'<text x="{(x0 + x1) / 2:.1f}" y="{by - 4:.1f}" text-anchor="middle">{esc(label)}</text>'
+            f'</g>')
     parts.append("</svg>")
     return (f'<figure class="chart"><figcaption><h3>{esc(title)}</h3>'
             f'<p>{esc(subtitle)}</p></figcaption>{"".join(parts)}</figure>')
@@ -231,18 +265,24 @@ def significance_table(units, caption, enough):
             verdict = "표본 부족" if (wp is None or not enough) else (
                 "유의" if (tp is not None and tp < 0.05) else "유의차 없음")
             cls = "sig" if verdict == "유의" else ("na" if verdict == "표본 부족" else "ns")
+            mark = stars(tp)
+            star_cls = "star" + ("" if (mark not in ("n.s.", "—") and enough) else " muted")
             rows.append(
                 f'<tr><td>{esc(qt.split(" · ")[0])}</td><td>vs {esc(COND_LABEL[base])}</td>'
                 f'<td class="num">{f"{diff:+.2f}" if diff is not None else "—"}</td>'
                 f'<td class="num">{f"{d:.2f}" if d is not None else "—"}</td>'
                 f'<td class="num">{f"{wp:.3f}" if wp is not None else "—"}</td>'
                 f'<td class="num">{f"{tp:.3f}" if tp is not None else "—"}</td>'
+                f'<td><span class="{star_cls}">{esc(mark)}</span></td>'
                 f'<td><span class="tag {cls}">{verdict}</span></td></tr>')
     return (f'<div class="scroll"><table class="data"><caption>{esc(caption)}</caption>'
             f'<thead><tr><th scope="col">문항</th><th scope="col">비교</th>'
             f'<th scope="col">평균차</th><th scope="col">Cohen d<sub>z</sub></th>'
             f'<th scope="col">Wilcoxon p</th><th scope="col">paired-t p</th>'
-            f'<th scope="col">판정</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>')
+            f'<th scope="col">유의</th><th scope="col">판정</th></tr></thead>'
+            f'<tbody>{"".join(rows)}</tbody></table>'
+            f'<p class="legend">*** p&lt;.001 · ** p&lt;.01 · * p&lt;.05 · † p&lt;.10 · n.s. 유의차 없음'
+            f'{" · 표본이 작아 잠정치입니다" if not enough else ""}</p></div>')
 
 
 def section(scope_id, rowsets, tiles, warn, unit_word, enough, hidden):
@@ -258,8 +298,25 @@ def section(scope_id, rowsets, tiles, warn, unit_word, enough, hidden):
             stats[c][q] = (mean(vals), (stdev(vals) / len(vals) ** 0.5) if len(vals) > 1 else 0.0)
 
     err = f" · 오차막대 = {unit_word} 간 표준오차" if len(units) > 1 else ""
-    charts = "".join(bar_chart(t, s + err, {c: stats[c][q] for c in CONDITIONS})
-                     for q, t, s in QS)
+    prov = "" if enough else f" · 유의성은 잠정치 (n={len(units)})"
+
+    def brackets_for(q):
+        """IntentCut vs each baseline, drawn above the bars."""
+        out = []
+        a = [u["intentcut_s2"][q] for u in units]
+        for i, base in enumerate(["funclip", "timechat", "random"], start=1):
+            b = [u[base][q] for u in units]
+            pairs = [(x, y) for x, y in zip(a, b) if x is not None and y is not None]
+            if not pairs:
+                continue
+            _, tp = wilcoxon_and_t([p[0] for p in pairs], [p[1] for p in pairs])
+            out.append((i, stars(tp), not enough))
+        return out
+
+    charts = "".join(
+        bar_chart(t, s + err + prov, {c: stats[c][q] for c in CONDITIONS},
+                  brackets=brackets_for(q))
+        for q, t, s in QS)
 
     all_rows = [r for _, rows in rowsets for r in rows]
     set_ids = [s for s in SET_LABEL if any(r["set_id"] == s for r in all_rows)]
@@ -491,6 +548,13 @@ h2 + .lede {{ color: var(--ink-2); margin: 0 0 16px; font-size: .95rem; }}
 .bar rect {{ fill: var(--hue); transition: opacity .12s; }}
 .bar:hover rect {{ opacity: .78; }}
 .err {{ stroke: var(--ink-2); stroke-width: 2; }}
+.brk path {{ fill: none; stroke: var(--ink-2); stroke-width: 1.5; }}
+.brk text {{ fill: var(--ink); font-size: 12px; font-weight: 600; font-family: "IBM Plex Mono", monospace; }}
+.brk.provisional path {{ stroke: var(--ink-3); stroke-dasharray: 3 3; }}
+.brk.provisional text {{ fill: var(--ink-3); font-weight: 500; }}
+.legend {{ margin: 8px 0 0; font-size: .82rem; color: var(--ink-3); }}
+.star {{ font-family: "IBM Plex Mono", monospace; font-weight: 600; }}
+.star.muted {{ color: var(--ink-3); font-weight: 400; }}
 .tables {{ display: flex; flex-direction: column; gap: 26px; }}
 .scroll {{ overflow-x: auto; }}
 table.data {{
