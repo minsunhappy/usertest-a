@@ -21,7 +21,13 @@ import requests
 HERE = Path(__file__).resolve().parent
 OUT = HERE / "report.html"
 
-CONDITIONS = ["intentcut_s2", "funclip", "timechat", "random"]
+# TimeChat is excluded from the study: its saliency answers were all ties, so the
+# assembler filled the budget from the earliest candidates and only ever covered the
+# first ~30% of each video. Its rows stay in the database; put it back here to analyse them.
+CONDITIONS = ["intentcut_s2", "funclip", "random"]
+ALL_CONDITIONS = ["intentcut_s2", "funclip", "timechat", "random"]
+# fixed colour slot per condition, so a condition keeps its hue when the set changes
+COND_SLOT = {"intentcut_s2": 1, "funclip": 2, "timechat": 3, "random": 4}
 COND_LABEL = {
     "intentcut_s2": "IntentCut",
     "funclip": "FunClip",
@@ -41,6 +47,7 @@ SET_LABEL = {
     "interstellar": "Interstellar (wave)",
 }
 GENDER_EN = {"남": "male", "여": "female", "미기재": "unspecified"}
+PER_PERSON = 5 * len(CONDITIONS)   # 5 videos x analysed conditions
 EXCLUDE_NAME_RE = re.compile(r"^(QA[-_]|SETUP_TEST$|POLICY_TEST$|test\d*$)", re.IGNORECASE)
 
 
@@ -93,7 +100,7 @@ def collect():
     real = {p["id"]: p for p in people if not EXCLUDE_NAME_RE.match(p.get("name") or "")}
     latest = {}   # newest row wins (edits are appended, never updated)
     for r in resp:
-        if r["participant_id"] in real:
+        if r["participant_id"] in real and r["condition"] in CONDITIONS:
             latest[(r["participant_id"], r["set_id"], r["condition"])] = r
 
     by_person = defaultdict(list)
@@ -102,7 +109,7 @@ def collect():
 
     done, partial = [], []
     for pid, rows in by_person.items():
-        (done if len(rows) == 20 else partial).append((real[pid], rows))
+        (done if len(rows) == PER_PERSON else partial).append((real[pid], rows))
     done.sort(key=lambda t: t[0]["created_at"])
     partial.sort(key=lambda t: t[0]["created_at"])
     return done, partial
@@ -206,7 +213,7 @@ def bar_chart(title, subtitle, values, compact=False, brackets=()):
         x = pad_l + slot * i + (slot - bar_w) / 2
         top = y(m)
         parts.append(
-            f'<g class="bar" style="--hue:var(--c{i + 1});">'
+            f'<g class="bar" style="--hue:var(--c{COND_SLOT[c]});">'
             f'<title>{esc(COND_LABEL[c])} · mean {m:.2f}{f" ± {sem:.2f}" if sem else ""}</title>'
             f'<rect x="{x:.1f}" y="{top:.1f}" width="{bar_w:.1f}" '
             f'height="{pad_t + plot_h - top:.1f}" rx="4" ry="4"/>')
@@ -245,7 +252,7 @@ def condition_table(stats, caption):
         cells = "".join(
             (f"<td>{stats[c][q][0]:.2f}<span class='sd'> ± {stats[c][q][1]:.2f}</span></td>"
              if stats[c][q][0] is not None else "<td>—</td>") for q, _, _ in QS)
-        rows.append(f'<tr><th scope="row"><span class="chip" style="background:var(--c{i + 1})"></span>'
+        rows.append(f'<tr><th scope="row"><span class="chip" style="background:var(--c{COND_SLOT[c]})"></span>'
                     f'{esc(COND_LABEL[c])}</th>{cells}</tr>')
     return (f'<div class="scroll"><table class="data"><caption>{esc(caption)}</caption>'
             f'<thead><tr><th scope="col">Condition</th>{head}</tr></thead>'
@@ -256,7 +263,7 @@ def significance_table(units, caption, enough):
     rows = []
     for q, qt, _ in QS:
         a = [u["intentcut_s2"][q] for u in units]
-        for base in ["funclip", "timechat", "random"]:
+        for base in [c for c in CONDITIONS if c != "intentcut_s2"]:
             b = [u[base][q] for u in units]
             pairs = [(x, y) for x, y in zip(a, b) if x is not None and y is not None]
             xa, xb = [p[0] for p in pairs], [p[1] for p in pairs]
@@ -305,7 +312,7 @@ def section(scope_id, rowsets, tiles, warn, unit_word, enough, hidden):
         """IntentCut vs each baseline, drawn above the bars."""
         out = []
         a = [u["intentcut_s2"][q] for u in units]
-        for i, base in enumerate(["funclip", "timechat", "random"], start=1):
+        for i, base in enumerate([c for c in CONDITIONS if c != "intentcut_s2"], start=1):
             b = [u[base][q] for u in units]
             pairs = [(x, y) for x, y in zip(a, b) if x is not None and y is not None]
             if not pairs:
@@ -338,7 +345,7 @@ def section(scope_id, rowsets, tiles, warn, unit_word, enough, hidden):
             cells = "".join(
                 (f"<td>{set_mean(s, c, q):.1f}</td>" if set_mean(s, c, q) is not None else "<td>—</td>")
                 for s in set_ids)
-            body.append(f'<tr><th scope="row"><span class="chip" style="background:var(--c{i + 1})"></span>'
+            body.append(f'<tr><th scope="row"><span class="chip" style="background:var(--c{COND_SLOT[c]})"></span>'
                         f'{esc(COND_LABEL[c])}</th>{cells}</tr>')
         set_tables.append(
             f'<div class="scroll"><table class="data"><caption>{esc(qt)} · mean by video</caption>'
@@ -388,11 +395,11 @@ def build(done, partial):
       <div class="tile"><span class="k">Completed</span><strong>{n}</strong>
         <span class="sub">{esc(gender_bits) or "—"}</span></div>
       <div class="tile"><span class="k">In progress</span><strong>{len(partial)}</strong>
-        <span class="sub">fewer than 20 ratings</span></div>
+        <span class="sub">fewer than {PER_PERSON} ratings</span></div>
       <div class="tile"><span class="k">Mean age</span><strong>{age_val}</strong>
         <span class="sub">{esc(age_sub)}</span></div>
-      <div class="tile"><span class="k">Ratings</span><strong>{n * 20}</strong>
-        <span class="sub">5 videos × 4 conditions × {n}</span></div>
+      <div class="tile"><span class="k">Ratings</span><strong>{n * PER_PERSON}</strong>
+        <span class="sub">5 videos × {len(CONDITIONS)} conditions × {n}</span></div>
     </div>"""
 
     warn_all = ""
@@ -414,7 +421,7 @@ def build(done, partial):
           <div class="tile"><span class="k">Participant</span><strong class="sm">{esc(mask(p.get("name")))}</strong>
             <span class="sub">{esc(p.get("age") or "—")} · {esc(GENDER_EN.get(p.get("gender"), p.get("gender") or "—"))}</span></div>
           <div class="tile"><span class="k">Ratings</span><strong>{len(rows)}</strong>
-            <span class="sub">5 videos × 4 conditions</span></div>
+            <span class="sub">5 videos × {len(CONDITIONS)} conditions</span></div>
           <div class="tile"><span class="k">Top-rated condition</span><strong class="sm">{esc(COND_LABEL[favourite])}</strong>
             <span class="sub">by Q3</span></div>
           <div class="tile"><span class="k">Started</span><strong class="sm">{esc(p["created_at"][:16].replace("T", " "))}</strong>
@@ -429,8 +436,8 @@ def build(done, partial):
     roster = []
     for p, rows in done + partial:
         n_rows = len(rows)
-        state = "complete" if n_rows == 20 else f"in progress {n_rows}/20"
-        cls = "done" if n_rows == 20 else "wip"
+        state = "complete" if n_rows == PER_PERSON else f"in progress {n_rows}/{PER_PERSON}"
+        cls = "done" if n_rows == PER_PERSON else "wip"
         roster.append(f'<tr><td>{esc(mask(p.get("name")))}</td><td class="num">{esc(p.get("age") or "—")}</td>'
                       f'<td>{esc(GENDER_EN.get(p.get("gender"), p.get("gender") or "—"))}</td>'
                       f'<td>{esc(p["created_at"][:16].replace("T", " "))}</td>'
@@ -606,7 +613,7 @@ footer {{ margin-top: 46px; padding-top: 18px; border-top: 1px solid var(--line)
   <div class="tables">{roster}</div>
 
   <footer>
-    IntentCut is the proposed method; FunClip, TimeChat and Random are baselines.
+    IntentCut is the proposed method; FunClip and Random are baselines.
     Where an answer was revised only the latest submission counts, and development/QA accounts are excluded.
   </footer>
 </div>
@@ -682,7 +689,7 @@ def summary(done, partial, registered_no_data):
         out.append(f"  * 참가자 {n}명이라 유의성 판정은 보류합니다 (5명부터 표시).")
     for q, qt, _ in QS:
         a = [u["intentcut_s2"][q] for u in units]
-        for base in ["funclip", "timechat", "random"]:
+        for base in [c for c in CONDITIONS if c != "intentcut_s2"]:
             b = [u[base][q] for u in units]
             wp, tp = wilcoxon_and_t(a, b)
             d = cohens_dz(a, b)

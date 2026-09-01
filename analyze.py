@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 
 OUT = Path(__file__).resolve().parent / "analysis"
-CONDITION_ORDER = ["intentcut_s2", "funclip", "timechat", "random"]
+CONDITION_ORDER = ["intentcut_s2", "funclip", "random"]   # TimeChat dropped from the study
 CONDITION_LABEL = {
     "intentcut_s2": "IntentCut (ours)",
     "funclip": "FunClip",
@@ -26,6 +26,7 @@ CONDITION_LABEL = {
     "random": "Random",
 }
 QS = ["q1", "q2", "q3"]
+EXPECTED = 5 * 3   # 5 videos x 3 conditions
 # 개발/QA 중 쌓인 계정은 분석에서 제외 (실제 참가자만 집계)
 EXCLUDE_NAME_RE = re.compile(r"^(QA[-_]|SETUP_TEST$|POLICY_TEST$|test\d*$)", re.IGNORECASE)
 Q_LABEL = {"q1": "Q1 Intent relevance", "q2": "Q2 Editing naturalness", "q3": "Q3 Overall satisfaction"}
@@ -98,6 +99,7 @@ def main():
 
     # Writes are append-only, so a participant who went back and edited a set has
     # several rows for it. Keep the newest row per (participant, set, condition).
+    df = df[df.condition.isin(CONDITION_ORDER)]   # TimeChat rows stay in the DB, out of the analysis
     df = df.sort_values("id" if "id" in df.columns else "set_index")
     before = len(df)
     df = df.drop_duplicates(subset=["participant_id", "set_id", "condition"], keep="last")
@@ -106,8 +108,8 @@ def main():
 
     # keep only participants with complete data (5 sets x 4 conditions = 20 rows)
     counts = df.groupby("participant_id").size()
-    complete_ids = counts[counts == 20].index
-    incomplete = counts[counts != 20]
+    complete_ids = counts[counts == EXPECTED].index
+    incomplete = counts[counts != EXPECTED]
     if len(incomplete):
         names = df.groupby("participant_id").participant_name.first()
         print(f"⚠️  미완료 참가자 {len(incomplete)}명 제외: "
@@ -115,7 +117,7 @@ def main():
     df = df[df.participant_id.isin(complete_ids)].copy()
     n = df.participant_id.nunique()
     if n == 0:
-        sys.exit("아직 완료한 참가자가 없습니다 (1명당 20개 응답 필요).")
+        sys.exit("아직 완료한 참가자가 없습니다 (1명당 15개 응답 필요).")
     print(f"participants analyzed: {n} ({len(df)} responses)")
     df.to_csv(OUT / "responses_raw.csv", index=False)
 
@@ -134,7 +136,7 @@ def main():
     lines = []
     piv = df.pivot_table(index=["participant_id", "set_id"], columns="condition", values=QS)
     for q in QS:
-        for base in ["funclip", "timechat", "random"]:
+        for base in [c for c in CONDITION_ORDER if c != "intentcut_s2"]:
             a = piv[(q, "intentcut_s2")]
             b = piv[(q, base)]
             mask = a.notna() & b.notna()

@@ -45,7 +45,7 @@ function renderProgress() {
     document.getElementById("progressFill").style.width = `${(stepsDone / (n * 2)) * 100}%`;
 }
 
-// 세트마다: 의도만 보여주는 페이지 → 영상 4개 + 질문 페이지
+// 세트마다: 의도만 보여주는 페이지 → 영상 + 질문 페이지
 function render() {
     if (state.cursor.stage !== "videos") state.cursor.stage = "intent";
     renderProgress();
@@ -60,7 +60,7 @@ function renderIntentPage() {
     <div class="card intent-page">
         <h2>세트 ${state.cursor.setIdx + 1} / ${state.setOrder.length}</h2>
         <p>이번 세트의 <b>의도</b>입니다. 충분히 읽고 확인한 뒤 다음으로 넘어가 주세요.<br>
-        다음 페이지의 하이라이트 4개를 모두 이 의도를 기준으로 평가하시면 됩니다.</p>
+        다음 페이지의 하이라이트를 모두 이 의도를 기준으로 평가하시면 됩니다.</p>
         <div class="intent-box intent-box-lg">
             <div class="intent-text"><span class="intent-label">의도:</span> “${set.intent_ko}”</div>
         </div>
@@ -107,7 +107,7 @@ function renderVideosPage() {
             </div>`).join("");
         return `
         <div class="card video-card" data-fk="${fk}">
-            <h2>하이라이트 ${i + 1} / 4</h2>
+            <h2>하이라이트 ${i + 1} / ${fileKeys.length}</h2>
             <div class="video-grid">
                 <div class="video-col">
                     <video id="player-${fk}" src="data/${set.set_id}/${fk}.mp4" controls controlslist="nodownload noplaybackrate" disablepictureinpicture preload="metadata"></video>
@@ -128,7 +128,7 @@ function renderVideosPage() {
     el.innerHTML = `
     <div class="card set-header">
         <h2>세트 ${state.cursor.setIdx + 1}</h2>
-        <p class="muted">아래 <b>의도</b>를 기준으로 이 페이지의 하이라이트 4개를 평가해 주세요.</p>
+        <p class="muted">아래 <b>의도</b>를 기준으로 이 페이지의 하이라이트 ${fileKeys.length}개를 평가해 주세요.</p>
         <div class="intent-box">
             <div class="intent-text"><span class="intent-label">의도:</span> “${set.intent_ko}”</div>
         </div>
@@ -138,7 +138,7 @@ function renderVideosPage() {
         <button class="btn btn-secondary" id="prevBtn">← 의도 다시 보기</button>
         <button class="btn" id="nextBtn" disabled>${state.cursor.setIdx < state.setOrder.length - 1 ? "다음 세트 →" : "제출하고 완료하기"}</button>
     </div>
-    <p class="center muted">4개 영상의 질문에 모두 답하면 다음으로 넘어갈 수 있습니다.</p>`;
+    <p class="center muted">${fileKeys.length}개 영상의 질문에 모두 답하면 다음으로 넘어갈 수 있습니다.</p>`;
 
     // per-video wiring
     for (const fk of fileKeys) {

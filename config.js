@@ -5,6 +5,10 @@
 const SUPABASE_URL = "https://ufyuyzprxstjktyhbbul.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmeXV5enByeHN0amt0eWhiYnVsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwMzA0MjUsImV4cCI6MjEwMzYwNjQyNX0.0Vi9T4j5aSI7-KDPsnqLsjPEpewMmdHteCh1kbWjcbY";
 
+// 평가에서 제외할 조건. TimeChat 은 하네스 문제(saliency 동점 → 영상 앞부분만 선택)로
+// 공정한 비교가 안 되어 유저테스트에서 뺐습니다. 되살리려면 이 배열을 비우면 됩니다.
+const EXCLUDED_CONDITIONS = ["timechat"];
+
 // 영상을 끝까지 봐야 질문이 활성화되는 스킵 방지 기능 (true로 바꾸면 다시 켜짐)
 const REQUIRE_FULL_WATCH = false;
 
